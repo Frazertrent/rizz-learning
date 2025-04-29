@@ -1,16 +1,20 @@
 "use client"
 
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { useToast } from "@/hooks/use-toast"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import type { OnboardingData } from "./onboarding-flow"
 import { ArrowLeft } from "lucide-react"
+import { submitAssessment } from "@/app/actions/submit-assessment"
 
 interface AssessmentStepProps {
   onContinue: () => void
@@ -38,6 +42,10 @@ const formSchema = z.object({
 })
 
 export function AssessmentStep({ onContinue, onBack, updateData, data }: AssessmentStepProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const router = useRouter()
+  const { toast } = useToast()
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -49,9 +57,47 @@ export function AssessmentStep({ onContinue, onBack, updateData, data }: Assessm
     },
   })
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    updateData(values)
-    onContinue()
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    try {
+      setIsSubmitting(true)
+      updateData(values)
+
+      // Submit assessment using server action
+      const result = await submitAssessment(values)
+
+      if (!result.success) {
+        toast({
+          title: "Something went wrong",
+          description: result.error || "We couldn't save your assessment. Please try again.",
+          variant: "destructive",
+        })
+        setIsSubmitting(false)
+        return
+      }
+
+      // Store session token in localStorage
+      if (result.sessionToken) {
+        localStorage.setItem("rizzlearning_session_token", result.sessionToken)
+      }
+
+      // Show success toast
+      toast({
+        title: "✨ Assessment submitted!",
+        description: "Your custom path is ready.",
+        variant: "default",
+      })
+
+      // Redirect to thanks page
+      router.push("/onboarding/thanks")
+    } catch (error) {
+      console.error("Error in submission:", error)
+      toast({
+        title: "Something went wrong",
+        description: "We couldn't save your assessment. Please try again.",
+        variant: "destructive",
+      })
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -193,9 +239,10 @@ export function AssessmentStep({ onContinue, onBack, updateData, data }: Assessm
                 <Button
                   type="submit"
                   size="lg"
+                  disabled={isSubmitting}
                   className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8"
                 >
-                  See Results
+                  {isSubmitting ? "Submitting..." : "See Results"}
                 </Button>
               </div>
             </form>

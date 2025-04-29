@@ -45,8 +45,8 @@ export function SignupForm() {
     // Simulate API call
     setTimeout(() => {
       setIsLoading(false)
-      // Redirect to parent intake form
-      router.push("/parent-intake")
+      // Redirect to confirmation page
+      router.push("/signup/confirmation")
     }, 1000)
   }
 
@@ -112,6 +112,7 @@ export function SignupForm() {
             )}
           />
           <div className="space-y-3 pt-2">
+            <div className="text-sm text-gray-500 mb-1 text-center">Step 2</div>
             <Button
               type="submit"
               className="w-full bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600 text-white rounded-xl h-12 font-medium shadow-md transition-all duration-200 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
@@ -121,7 +122,7 @@ export function SignupForm() {
                 "Creating account..."
               ) : (
                 <span className="flex items-center justify-center gap-2">
-                  Continue to Intake Form
+                  Complete your Family Enrollment Profile
                   <ArrowRight className="h-4 w-4" />
                 </span>
               )}

@@ -1,5 +1,5 @@
-import { StudentManagement } from "@/components/parent/student-management"
+import { MyStudentsDashboard } from "@/components/parent/my-students-dashboard"
 
 export default function StudentsPage() {
-  return <StudentManagement />
+  return <MyStudentsDashboard />
 }
