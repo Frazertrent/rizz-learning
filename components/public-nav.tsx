@@ -98,7 +98,7 @@ export function PublicNav() {
                 </Button>
               </Link>
             </div>
-            <Link href="/signup">
+            <Link href="/membership">
               <Button className="rounded-full bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 border-0 text-white">
                 Sign up
               </Button>

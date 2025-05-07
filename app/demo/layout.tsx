@@ -1,15 +1,15 @@
 import type React from "react"
-import { GlobalHeader } from "@/components/global-header"
+import { FloatingActionButton } from "@/components/floating-action-button"
 
-export default function DashboardLayout({
+export default function DemoLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode
-}>) {
+}) {
   return (
     <>
-      <GlobalHeader />
-      <main>{children}</main>
+      {children}
+      <FloatingActionButton />
     </>
   )
 }
