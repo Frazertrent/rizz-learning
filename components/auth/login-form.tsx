@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
+import { supabase } from "@/lib/supabase"
 
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false)
@@ -21,9 +22,21 @@ export function LoginForm() {
     e.preventDefault()
     setIsLoading(true)
 
-    // Simulate authentication
-    setTimeout(() => {
-      setIsLoading(false)
+    try {
+      // Sign in with Supabase Auth
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (error) {
+        throw error
+      }
+
+      toast({
+        title: "Success",
+        description: "You have successfully logged in.",
+      })
 
       // Determine which dashboard to redirect to based on role
       // For demo purposes, we'll use email to determine role
@@ -39,12 +52,16 @@ export function LoginForm() {
         // Default to parent dashboard
         router.push("/parent")
       }
-
+    } catch (error) {
+      console.error("Login error:", error)
       toast({
-        title: "Success",
-        description: "You have successfully logged in.",
+        variant: "destructive",
+        title: "Login Failed",
+        description: error.message || "Invalid email or password",
       })
-    }, 1000)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -99,8 +116,8 @@ export function LoginForm() {
       </div>
       <div className="text-center text-sm">
         Don&apos;t have an account?{" "}
-        <Link href="/signup" className="font-medium underline underline-offset-4">
-          Sign up
+        <Link href="/profile-setup" className="font-medium underline underline-offset-4">
+          Create profile
         </Link>
       </div>
     </div>

@@ -95,7 +95,7 @@ export interface Database {
           full_name?: string
           email?: string
           utah_affiliation?: string
-          preferences_json?: string
+          preferences_json?: Json
           created_at?: string
         }
       }

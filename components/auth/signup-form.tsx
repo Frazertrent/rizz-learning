@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -39,7 +41,8 @@ export function SignupForm() {
     },
   })
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault()
     setIsLoading(true)
 
     // Simulate API call

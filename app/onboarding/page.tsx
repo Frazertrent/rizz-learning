@@ -1,5 +1,5 @@
-import { IntroductoryAssessment } from "@/components/onboarding/introductory-assessment"
+import { OnboardingFlow } from "@/components/onboarding/onboarding-flow"
 
 export default function OnboardingPage() {
-  return <IntroductoryAssessment />
+  return <OnboardingFlow />
 }

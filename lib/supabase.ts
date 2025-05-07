@@ -1,21 +1,16 @@
 import { createClient } from "@supabase/supabase-js"
 import type { Database } from "./database.types"
 
-// This is for client components only
-// For server components and server actions, use supabase-server.ts
+// Use the environment variables
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-  throw new Error("Missing env.NEXT_PUBLIC_SUPABASE_URL")
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error("Missing Supabase environment variables")
 }
 
-if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-  throw new Error("Missing env.NEXT_PUBLIC_SUPABASE_ANON_KEY")
-}
-
-export const supabase = createClient<Database>(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-)
+// Create a single supabase client for the browser
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey)
 
 // Helper function to get the current user
 export async function getCurrentUser() {
@@ -38,7 +33,7 @@ export async function getStudentsForParent(parentId: string) {
 }
 
 // Helper function to create a new student
-export async function createStudent(studentData: Database["public"]["tables"]["student"]["Insert"]) {
+export async function createStudent(studentData: any) {
   const { data, error } = await supabase.from("student").insert(studentData).select()
 
   if (error) {
@@ -50,7 +45,7 @@ export async function createStudent(studentData: Database["public"]["tables"]["s
 }
 
 // Helper function to update a student
-export async function updateStudent(studentId: string, updateData: Database["public"]["tables"]["student"]["Update"]) {
+export async function updateStudent(studentId: string, updateData: any) {
   const { data, error } = await supabase.from("student").update(updateData).eq("id", studentId).select()
 
   if (error) {
@@ -74,7 +69,7 @@ export async function getParentProfile(parentId: string) {
 }
 
 // Helper function to create or update a parent profile
-export async function upsertParentProfile(profileData: Database["public"]["tables"]["parent_profile"]["Insert"]) {
+export async function upsertParentProfile(profileData: any) {
   const { data, error } = await supabase.from("parent_profile").upsert(profileData).select()
 
   if (error) {

@@ -1,99 +1,75 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { motion } from "framer-motion"
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { useState } from "react"
+import { ChevronDown, HelpCircle, Users, FileText, ArrowRightLeft } from "lucide-react"
 
 export function MembershipFAQ() {
-  const [isVisible, setIsVisible] = useState(false)
+  const [openItem, setOpenItem] = useState<number | null>(null)
 
-  useEffect(() => {
-    const handleScroll = () => {
-      if (typeof window !== "undefined") {
-        const element = document.getElementById("membership-faq")
-        if (!element) return
-
-        const rect = element.getBoundingClientRect()
-        if (rect.top <= window.innerHeight * 0.75) {
-          setIsVisible(true)
-        }
-      }
-    }
-
-    if (typeof window !== "undefined") {
-      window.addEventListener("scroll", handleScroll)
-      handleScroll() // Check on initial load
-
-      return () => window.removeEventListener("scroll", handleScroll)
-    }
-  }, [])
+  const toggleItem = (index: number) => {
+    setOpenItem(openItem === index ? null : index)
+  }
 
   const faqs = [
     {
-      question: "Can I change plans later?",
+      question: "Can I cancel anytime?",
       answer:
-        "You can upgrade or downgrade your plan at any time. If you upgrade, the new features will be available immediately. If you downgrade, you'll continue to have access to your current plan until the end of your billing cycle.",
+        "Yes, you can cancel your subscription at any time. There are no long-term contracts or cancellation fees. If you cancel, you'll continue to have access until the end of your current billing period.",
+      icon: <HelpCircle className="h-5 w-5 text-red-400" />,
     },
     {
-      question: "Do I need to enter payment info to start?",
+      question: "What happens if I have multiple children?",
       answer:
-        "No, you can sign up for our free Starter plan without entering any payment information. You'll only need to provide payment details when you decide to upgrade to Pro or Premium.",
+        "The Starter Plan includes 1 personalized learning plan. The Core Plan supports up to 3 student profiles, and the Power Plan offers unlimited student profiles. Each child gets their own personalized dashboard, progress tracking, and curriculum recommendations.",
+      icon: <Users className="h-5 w-5 text-blue-400" />,
     },
     {
-      question: "Is my child's info secure?",
+      question: "Is this aligned with state regulations?",
       answer:
-        "Yes, we take security and privacy very seriously. All data is encrypted, and we never share your child's information with third parties. We comply with all relevant privacy regulations and provide tools for you to manage and delete your data at any time.",
+        "Yes, our platform is designed to help you meet state homeschooling requirements. We provide guidance specific to your state's regulations and can help you with documentation, reporting, and compliance needs. Our curriculum recommendations are aligned with state standards.",
+      icon: <FileText className="h-5 w-5 text-gray-400" />,
     },
     {
-      question: "What's included in the free version?",
+      question: "How do I switch plans later?",
       answer:
-        "The free Starter plan includes our Curriculum Path Builder, Program + Platform Matcher, Dashboard Overview, and Getting Started Tools. It's designed to help you begin your homeschool journey and get familiar with our platform.",
-    },
-    {
-      question: "Do I need Premium to use GPT?",
-      answer:
-        "Yes, the AI-powered features like GPT tutor help, essay feedback, and automated task management are exclusive to our Premium plan. These advanced features require additional resources and specialized AI models.",
+        "You can upgrade or downgrade your plan at any time from your account settings. When upgrading, you'll get immediate access to the new features. When downgrading, the change will take effect at the start of your next billing cycle.",
+      icon: <ArrowRightLeft className="h-5 w-5 text-purple-400" />,
     },
   ]
 
   return (
-    <section id="membership-faq" className="relative py-20 px-4 sm:px-6 lg:px-8">
-      <div className="absolute inset-0 bg-gradient-to-b from-slate-900 to-slate-950"></div>
+    <div className="mt-20">
+      <h2 className="text-3xl font-bold flex items-center justify-center gap-2 mb-10">
+        <HelpCircle className="h-7 w-7 text-purple-500" /> Frequently Asked Questions
+      </h2>
 
-      <div className="relative z-10 mx-auto max-w-4xl">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: isVisible ? 1 : 0, y: isVisible ? 0 : 30 }}
-          transition={{ duration: 0.5 }}
-          className="mb-12 text-center"
-        >
-          <h2 className="mb-4 text-3xl font-bold text-white sm:text-4xl">Frequently Asked Questions</h2>
-          <p className="mx-auto max-w-2xl text-lg text-gray-300">
-            Find answers to common questions about our membership plans.
-          </p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: isVisible ? 1 : 0, y: isVisible ? 0 : 30 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
-          <Accordion type="single" collapsible className="space-y-4">
-            {faqs.map((faq, index) => (
-              <AccordionItem
-                key={index}
-                value={`item-${index}`}
-                className="rounded-lg border border-gray-700 bg-slate-800/50 px-6"
-              >
-                <AccordionTrigger className="text-left text-lg font-medium text-white hover:text-indigo-300">
-                  {faq.question}
-                </AccordionTrigger>
-                <AccordionContent className="text-gray-300">{faq.answer}</AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        </motion.div>
+      <div className="max-w-3xl mx-auto bg-gray-900 rounded-xl overflow-hidden">
+        {faqs.map((faq, index) => (
+          <div key={index} className="border-b border-gray-800 last:border-b-0">
+            <button
+              onClick={() => toggleItem(index)}
+              className="flex items-center justify-between w-full p-6 text-left"
+            >
+              <div className="flex items-center gap-3">
+                {faq.icon}
+                <span className="text-lg font-medium">{faq.question}</span>
+              </div>
+              <ChevronDown
+                className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${
+                  openItem === index ? "transform rotate-180" : ""
+                }`}
+              />
+            </button>
+            <div
+              className={`overflow-hidden transition-all duration-300 ${
+                openItem === index ? "max-h-96 pb-6 px-6" : "max-h-0"
+              }`}
+            >
+              <p className="text-gray-400 pl-10">{faq.answer}</p>
+            </div>
+          </div>
+        ))}
       </div>
-    </section>
+    </div>
   )
 }

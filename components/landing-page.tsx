@@ -108,7 +108,7 @@ export function LandingPage() {
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <div className="flex flex-col items-center">
-              <Link href="/onboarding">
+              <Link href="/pre-assessment">
                 <Button className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-full px-8 py-6 text-lg font-medium hover:scale-105 transition-transform">
                   Get Started
                   <ArrowRight className="ml-2 h-5 w-5" />

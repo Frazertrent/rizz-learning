@@ -1,15 +1,13 @@
 import { createClient } from "@supabase/supabase-js"
-import type { Database } from "./database.types"
 
-// This is for server components and server actions only
-// Do not import this in client components
-
-if (!process.env.SUPABASE_URL) {
-  throw new Error("Missing env.SUPABASE_URL")
+// Server-side Supabase client
+export function createServerSupabaseClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  })
 }
-
-if (!process.env.SUPABASE_ANON_KEY) {
-  throw new Error("Missing env.SUPABASE_ANON_KEY")
-}
-
-export const supabaseServer = createClient<Database>(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY)

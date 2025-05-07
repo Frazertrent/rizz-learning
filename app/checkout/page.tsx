@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { useState } from "react"
 import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
@@ -16,44 +16,46 @@ import { Label } from "@/components/ui/label"
 const planData = {
   starter: {
     name: "Starter Plan",
-    price: "$9",
+    price: "$19",
     tag: "",
     color: "from-blue-500 to-indigo-600",
     buttonColor: "from-blue-500 to-indigo-600",
     features: [
-      "Access to curriculum builder",
-      "Weekly schedule planner",
-      "Upload & feedback tools",
-      "Basic progress tracking",
-      "Email support",
+      "1 Personalized Learning Plan",
+      "3 program or school matches (public/private/charter)",
+      "Financial aid suggestions",
+      "Weekly email tips & updates",
+      'One-time download: "Starter Resource Toolkit"',
     ],
   },
-  pro: {
-    name: "Pro Plan",
-    price: "$19",
-    tag: "Most Popular",
-    color: "from-purple-500 to-pink-600",
-    buttonColor: "from-purple-500 to-pink-600",
-    features: [
-      "Everything in Starter",
-      "AI-generated curriculum suggestions",
-      "XP + streak tracking",
-      "Personalized learning paths",
-      "Priority email support",
-    ],
-  },
-  premium: {
-    name: "Premium Plan",
+  core: {
+    name: "Core Plan",
     price: "$29",
-    tag: "Full Access",
-    color: "from-amber-500 to-red-600",
-    buttonColor: "from-amber-500 to-red-600",
+    tag: "",
+    color: "from-blue-600 to-blue-700",
+    buttonColor: "from-blue-600 to-blue-700",
     features: [
-      "Everything in Pro",
-      "GPT assistant for lesson feedback",
-      "Priority support",
-      "Advanced analytics dashboard",
-      "Unlimited resource access",
+      "All Starter features",
+      "Full dashboard access for up to 3 students",
+      "Custom curriculum planner",
+      "Weekly progress snapshots",
+      "AI Mentor feedback on submissions",
+      "Reimbursement assistant & transcript builder",
+    ],
+  },
+  power: {
+    name: "Power Plan",
+    price: "$39",
+    tag: "Most Popular",
+    color: "from-purple-600 to-pink-600",
+    buttonColor: "from-purple-600 to-pink-600",
+    features: [
+      "All Core features",
+      "Unlimited student profiles",
+      "AI-powered grading assistant + reflections",
+      "Auto-filled document vault",
+      "Real-time alerts for missed work",
+      "Dedicated onboarding concierge (human support)",
     ],
   },
 }
@@ -61,8 +63,9 @@ const planData = {
 export default function CheckoutPage() {
   // Get plan from URL query parameter
   const searchParams = useSearchParams()
-  const planParam = searchParams.get("plan") || "pro"
-  const plan = planData[planParam as keyof typeof planData] || planData.pro
+  const router = useRouter()
+  const planParam = searchParams.get("plan") || "core"
+  const plan = planData[planParam as keyof typeof planData] || planData.core
 
   // State for form and modal
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -78,6 +81,11 @@ export default function CheckoutPage() {
       setIsSubmitting(false)
       setShowSuccessModal(true)
     }, 1500)
+  }
+
+  // Handle continue to profile setup
+  const handleContinueToProfileSetup = () => {
+    router.push("/profile-setup")
   }
 
   // Animation variants
@@ -290,7 +298,7 @@ export default function CheckoutPage() {
               {/* Optional Link */}
               <div className="mt-6 text-center">
                 <Link
-                  href="/parent-intake#pricing"
+                  href="/membership"
                   className="inline-flex items-center text-gray-400 hover:text-white transition-colors"
                 >
                   <ArrowLeft className="mr-1 h-4 w-4" />
@@ -322,17 +330,18 @@ export default function CheckoutPage() {
                   <Check className="h-10 w-10 text-white" />
                 </div>
 
-                <h2 className="text-3xl font-bold mb-4">🎊 You're In!</h2>
+                <h2 className="text-3xl font-bold mb-4">🎊 Payment Successful!</h2>
                 <p className="text-gray-300 mb-8">
-                  Your dashboard is being set up now. We're personalizing everything based on your preferences.
+                  Your payment has been processed successfully. Now let's set up your profiles to personalize your
+                  experience.
                 </p>
 
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                   <Button
                     className="w-full h-12 text-lg font-bold bg-gradient-to-r from-purple-500 to-pink-600 hover:shadow-lg hover:shadow-purple-500/20 transition-all duration-300 rounded-xl"
-                    onClick={() => (window.location.href = "/parent")}
+                    onClick={handleContinueToProfileSetup}
                   >
-                    Go to My Dashboard <ArrowRight className="ml-2 h-5 w-5" />
+                    Continue to Profile Setup <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
                 </motion.div>
               </div>

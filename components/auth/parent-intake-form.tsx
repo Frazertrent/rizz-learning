@@ -24,8 +24,9 @@ import { BudgetGrants } from "./intake-steps/budget-grants"
 import { AutoFillApplications } from "./intake-steps/auto-fill-applications"
 import { IntroScreen } from "./intake-steps/intro-screen"
 import { SummaryScreen } from "./intake-steps/summary-screen"
+import { supabase } from "@/lib/supabase"
 
-export function ParentIntakeForm() {
+export function ParentIntakeForm({ parentId, parentName }: { parentId: string; parentName: string }) {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(0) // Start at Step 0 (intro screen)
   const [showSummary, setShowSummary] = useState(false) // State to control summary screen visibility
@@ -233,16 +234,94 @@ export function ParentIntakeForm() {
     }
   }
 
-  const handleSubmit = () => {
+  const welcomeMessage = parentName ? `Welcome, ${parentName}!` : "Welcome!"
+
+  const handleSubmit = async () => {
     // Here you would typically send the form data to your backend
     console.log("Form submitted:", formData)
-    // Show summary screen instead of navigating directly to dashboard
-    setShowSummary(true)
+
+    try {
+      // Save the form data to the parent_intake_form table
+      const { error } = await supabase.from("parent_intake_form").insert({
+        parent_id: parentId,
+        educational_goals: formData.educationalGoals,
+        other_goal: formData.otherGoal,
+        target_gpa: formData.targetGpa,
+        outcome_level: formData.outcomeLevel,
+        custom_outcome: formData.customOutcome,
+        home_percentage: formData.homePercentage,
+        subject_locations: formData.subjectLocations,
+        hybrid_options: formData.hybridOptions,
+        other_hybrid_option: formData.otherHybridOption,
+        platforms: formData.platforms,
+        other_platform: formData.otherPlatform,
+        want_recommendations: formData.wantRecommendations,
+        school_days: formData.schoolDays,
+        start_time: formData.startTime,
+        end_time: formData.endTime,
+        has_different_times: formData.hasDifferentTimes,
+        day_specific_times: formData.daySpecificTimes,
+        block_length: formData.blockLength,
+        term_structure: formData.termStructure,
+        term_length: formData.termLength,
+        term_unit: formData.termUnit,
+        courses: formData.courses,
+        mentor_personality: formData.mentorPersonality,
+        other_personality: formData.otherPersonality,
+        structure_preference: formData.structurePreference,
+        educational_values: formData.educationalValues,
+        other_value: formData.otherValue,
+        extracurriculars: formData.extracurriculars,
+        other_extracurricular: formData.otherExtracurricular,
+        devices: formData.devices,
+        task_delivery: formData.taskDelivery,
+        parent_involvement: formData.parentInvolvement,
+        oversight_preferences: formData.oversightPreferences,
+        penalty_level: formData.penaltyLevel,
+        custom_penalties: formData.customPenalties,
+        education_budget: formData.educationBudget,
+        reward_budget: formData.rewardBudget,
+        check_for_grants: formData.checkForGrants,
+        household_income: formData.householdIncome,
+        dependents: formData.dependents,
+        parent_education: formData.parentEducation,
+        zip_code: formData.zipCode,
+        demographics: formData.demographics,
+        application_students: formData.applicationStudents,
+        parent_info: formData.parent,
+        address: formData.address,
+        district: formData.district,
+        contact_email: formData.contactEmail,
+        completed: true,
+      })
+
+      if (error) {
+        console.error("Error saving intake form:", error)
+        throw error
+      }
+
+      // Update the parent profile to indicate that the intake form has been completed
+      const { error: updateError } = await supabase
+        .from("parent_profile")
+        .update({ has_completed_intake: true })
+        .eq("id", parentId)
+
+      if (updateError) {
+        console.error("Error updating parent profile:", updateError)
+        // Non-critical, continue
+      }
+
+      // Show summary screen instead of navigating directly to dashboard
+      setShowSummary(true)
+    } catch (error) {
+      console.error("Error submitting form:", error)
+      // Show an error message to the user
+    }
   }
 
   const handleGoToDashboard = () => {
     // Navigate to the parent dashboard
-    router.push("/membership")
+    router.push(`/parent/dashboard?id=${parentId}`)
   }
 
   // Don't show progress bar on intro screen or summary screen
@@ -258,7 +337,7 @@ export function ParentIntakeForm() {
       {showProgress && (
         <>
           <div className="mb-8 text-center">
-            <h1 className="text-3xl font-bold text-white mb-2">Parent Intake Form</h1>
+            <h1 className="text-3xl font-bold text-white mb-2">{welcomeMessage} Parent Intake Form</h1>
             <p className="text-gray-400">Help us understand your educational goals and preferences</p>
           </div>
 

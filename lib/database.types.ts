@@ -2,37 +2,46 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 
 export interface Database {
   public: {
-    Tables: {
-      parent_onboarding_assessment: {
+    tables: {
+      parent_profile: {
         Row: {
           id: string
-          child_age_grade: string
-          learning_style: string
-          parent_involvement: string
-          peer_interaction: string
-          main_concern: string
-          session_token: string
+          email: string
+          first_name: string | null
+          last_name: string | null
+          username: string | null
+          state: string | null
+          school_district: string | null
+          number_of_students: number | null
+          preferences_json: Json | null
           created_at: string
+          updated_at: string
         }
         Insert: {
-          id?: string
-          child_age_grade: string
-          learning_style: string
-          parent_involvement: string
-          peer_interaction: string
-          main_concern: string
-          session_token: string
+          id: string
+          email: string
+          first_name?: string | null
+          last_name?: string | null
+          username?: string | null
+          state?: string | null
+          school_district?: string | null
+          number_of_students?: number | null
+          preferences_json?: Json | null
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
-          child_age_grade?: string
-          learning_style?: string
-          parent_involvement?: string
-          peer_interaction?: string
-          main_concern?: string
-          session_token?: string
+          email?: string
+          first_name?: string | null
+          last_name?: string | null
+          username?: string | null
+          state?: string | null
+          school_district?: string | null
+          number_of_students?: number | null
+          preferences_json?: Json | null
           created_at?: string
+          updated_at?: string
         }
       }
       student: {
@@ -40,59 +49,87 @@ export interface Database {
           id: string
           parent_id: string
           full_name: string
-          grade_level: string
-          schedule_json?: Json
-          expectations?: Json
-          assigned_tools?: string[]
+          first_name: string | null
+          last_name: string | null
+          username: string | null
+          age: number | null
+          grade_level: string | null
+          schedule_json: Json | null
+          expectations: Json | null
+          assigned_tools: string[] | null
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
           parent_id: string
           full_name: string
-          grade_level: string
-          schedule_json?: Json
-          expectations?: Json
-          assigned_tools?: string[]
+          first_name?: string | null
+          last_name?: string | null
+          username?: string | null
+          age?: number | null
+          grade_level?: string | null
+          schedule_json?: Json | null
+          expectations?: Json | null
+          assigned_tools?: string[] | null
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
           parent_id?: string
           full_name?: string
-          grade_level?: string
-          schedule_json?: Json
-          expectations?: Json
-          assigned_tools?: string[]
+          first_name?: string | null
+          last_name?: string | null
+          username?: string | null
+          age?: number | null
+          grade_level?: string | null
+          schedule_json?: Json | null
+          expectations?: Json | null
+          assigned_tools?: string[] | null
           created_at?: string
+          updated_at?: string
         }
       }
-      parent_profile: {
+      parent_onboarding_assessment: {
         Row: {
           id: string
-          full_name: string
-          email: string
-          utah_affiliation?: string
-          preferences_json?: Json
+          parent_id: string | null
+          child_age_grade: string | null
+          learning_style: string | null
+          parent_involvement: string | null
+          peer_interaction: string | null
+          main_concern: string | null
+          session_token: string | null
+          assessment_data: Json | null
           created_at: string
         }
         Insert: {
-          id: string
-          full_name: string
-          email: string
-          utah_affiliation?: string
-          preferences_json?: Json
+          id?: string
+          parent_id?: string | null
+          child_age_grade?: string | null
+          learning_style?: string | null
+          parent_involvement?: string | null
+          peer_interaction?: string | null
+          main_concern?: string | null
+          session_token?: string | null
+          assessment_data?: Json | null
           created_at?: string
         }
         Update: {
           id?: string
-          full_name?: string
-          email?: string
-          utah_affiliation?: string
-          preferences_json?: Json
+          parent_id?: string | null
+          child_age_grade?: string | null
+          learning_style?: string | null
+          parent_involvement?: string | null
+          peer_interaction?: string | null
+          main_concern?: string | null
+          session_token?: string | null
+          assessment_data?: Json | null
           created_at?: string
         }
       }
+      // Add other tables as needed
     }
     Views: {
       [_ in never]: never

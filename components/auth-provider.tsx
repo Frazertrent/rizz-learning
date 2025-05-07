@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { createContext, useContext, useState, useEffect } from "react"
+import { supabase } from "@/lib/supabase"
 
 type User = {
   id: string
@@ -24,61 +25,136 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // For demo purposes, set a default user
+  // Check for existing session on initial load
   useEffect(() => {
-    if (!user && !isLoading) {
-      const defaultUser = {
-        id: "user-1",
-        name: "Parent User",
-        email: "parent@example.com",
-        role: "parent" as const,
-      }
-      setUser(defaultUser)
-      localStorage.setItem("user", JSON.stringify(defaultUser))
-    }
-  }, [user, isLoading])
+    const checkSession = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
 
-  useEffect(() => {
-    // Check if user is logged in
-    const storedUser = localStorage.getItem("user")
-    if (storedUser) {
-      setUser(JSON.parse(storedUser))
+        if (session?.user) {
+          // Determine role based on email for demo purposes
+          let role: "parent" | "student" | "mentor" | "admin" = "parent"
+          const email = session.user.email || ""
+
+          if (email.includes("student")) {
+            role = "student"
+          } else if (email.includes("mentor")) {
+            role = "mentor"
+          } else if (email.includes("admin")) {
+            role = "admin"
+          }
+
+          const newUser = {
+            id: session.user.id,
+            name: email.split("@")[0],
+            email,
+            role,
+          }
+
+          setUser(newUser)
+          localStorage.setItem("user", JSON.stringify(newUser))
+        } else {
+          // Fallback to stored user if needed
+          const storedUser = localStorage.getItem("user")
+          if (storedUser) {
+            setUser(JSON.parse(storedUser))
+          }
+        }
+      } catch (error) {
+        console.error("Session check error:", error)
+      } finally {
+        setIsLoading(false)
+      }
     }
-    setIsLoading(false)
+
+    checkSession()
+
+    // Subscribe to auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "SIGNED_IN" && session?.user) {
+        // Determine role based on email for demo purposes
+        let role: "parent" | "student" | "mentor" | "admin" = "parent"
+        const email = session.user.email || ""
+
+        if (email.includes("student")) {
+          role = "student"
+        } else if (email.includes("mentor")) {
+          role = "mentor"
+        } else if (email.includes("admin")) {
+          role = "admin"
+        }
+
+        const newUser = {
+          id: session.user.id,
+          name: email.split("@")[0],
+          email,
+          role,
+        }
+
+        setUser(newUser)
+        localStorage.setItem("user", JSON.stringify(newUser))
+      } else if (event === "SIGNED_OUT") {
+        setUser(null)
+        localStorage.removeItem("user")
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [])
 
   const login = async (email: string, password: string) => {
     setIsLoading(true)
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
 
-    // Determine role based on email for demo purposes
-    let role: "parent" | "student" | "mentor" | "admin" = "parent"
+      if (error) throw error
 
-    if (email.includes("student")) {
-      role = "student"
-    } else if (email.includes("mentor")) {
-      role = "mentor"
-    } else if (email.includes("admin")) {
-      role = "admin"
+      // Role is determined by email for demo purposes
+      let role: "parent" | "student" | "mentor" | "admin" = "parent"
+
+      if (email.includes("student")) {
+        role = "student"
+      } else if (email.includes("mentor")) {
+        role = "mentor"
+      } else if (email.includes("admin")) {
+        role = "admin"
+      }
+
+      const user = {
+        id: data.user.id,
+        name: email.split("@")[0],
+        email,
+        role,
+      }
+
+      setUser(user)
+      localStorage.setItem("user", JSON.stringify(user))
+    } catch (error) {
+      console.error("Login error:", error)
+      throw error
+    } finally {
+      setIsLoading(false)
     }
-
-    const user = {
-      id: "user-1",
-      name: email.split("@")[0],
-      email,
-      role,
-    }
-
-    setUser(user)
-    localStorage.setItem("user", JSON.stringify(user))
-    setIsLoading(false)
   }
 
-  const logout = () => {
-    setUser(null)
-    localStorage.removeItem("user")
+  const logout = async () => {
+    try {
+      await supabase.auth.signOut()
+      setUser(null)
+      localStorage.removeItem("user")
+    } catch (error) {
+      console.error("Logout error:", error)
+    }
   }
 
   return <AuthContext.Provider value={{ user, login, logout, isLoading }}>{children}</AuthContext.Provider>
