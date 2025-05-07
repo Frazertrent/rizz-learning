@@ -55,7 +55,7 @@ export default function TourPage() {
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
-            <Link href="/parent-intake">
+            <Link href="/demo-selection">
               <Button
                 variant="outline"
                 className="bg-black text-white border-white hover:bg-white hover:text-black rounded-full px-8 py-6 text-lg font-medium transition-colors"
