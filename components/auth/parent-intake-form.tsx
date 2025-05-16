@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardFooter } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
+import { supabase } from "@/lib/supabase"
 
 // Import all step components
 import { EducationalVision } from "./intake-steps/educational-vision"
@@ -24,12 +25,67 @@ import { BudgetGrants } from "./intake-steps/budget-grants"
 import { AutoFillApplications } from "./intake-steps/auto-fill-applications"
 import { IntroScreen } from "./intake-steps/intro-screen"
 import { SummaryScreen } from "./intake-steps/summary-screen"
-import { supabase } from "@/lib/supabase"
 
-export function ParentIntakeForm({ parentId, parentName }: { parentId: string; parentName: string }) {
+export function ParentIntakeForm() {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(0) // Start at Step 0 (intro screen)
   const [showSummary, setShowSummary] = useState(false) // State to control summary screen visibility
+  const [isLoading, setIsLoading] = useState(true)
+  const [parentId, setParentId] = useState<string | null>(null)
+  const [parentName, setParentName] = useState<string>("")
+  const [error, setError] = useState<string | null>(null)
+
+  // Fetch the current user when the component mounts
+  useEffect(() => {
+    async function fetchCurrentUser() {
+      try {
+        setIsLoading(true)
+
+        // Get the current user from Supabase auth
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser()
+
+        if (userError) {
+          console.error("Auth error:", userError)
+          setIsLoading(false)
+          return
+        }
+
+        if (!user) {
+          console.log("No user found in form component")
+          setIsLoading(false)
+          return
+        }
+
+        // Set the parent ID from the user's ID
+        setParentId(user.id)
+
+        // Optionally fetch additional user data from your profiles table
+        const { data: profileData, error: profileError } = await supabase
+          .from("parent_profile")
+          .select("full_name")
+          .eq("id", user.id)
+          .single()
+
+        if (!profileError && profileData) {
+          setParentName(profileData.full_name || user.email?.split("@")[0] || "")
+        } else {
+          // Fallback to email if profile not found
+          setParentName(user.email?.split("@")[0] || "")
+        }
+      } catch (err) {
+        console.error("Error in form component:", err)
+        // Don't set error state here, let the page component handle auth errors
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchCurrentUser()
+  }, [])
+
   const [formData, setFormData] = useState({
     // Educational Vision & Goals
     educationalGoals: [],
@@ -237,13 +293,18 @@ export function ParentIntakeForm({ parentId, parentName }: { parentId: string; p
   const welcomeMessage = parentName ? `Welcome, ${parentName}!` : "Welcome!"
 
   const handleSubmit = async () => {
-    // Here you would typically send the form data to your backend
-    console.log("Form submitted:", formData)
+    // Make sure we have a parent ID before submitting
+    if (!parentId) {
+      setError("No parent ID found. Please log in again.")
+      return
+    }
 
     try {
+      console.log("Form submitted with parent ID:", parentId)
+
       // Save the form data to the parent_intake_form table
-      const { error } = await supabase.from("parent_intake_form").insert({
-        parent_id: parentId,
+      const { error: insertError } = await supabase.from("parent_intake_form").insert({
+        parent_id: parentId, // Include the parent ID here
         educational_goals: formData.educationalGoals,
         other_goal: formData.otherGoal,
         target_gpa: formData.targetGpa,
@@ -295,15 +356,37 @@ export function ParentIntakeForm({ parentId, parentName }: { parentId: string; p
         completed: true,
       })
 
-      if (error) {
-        console.error("Error saving intake form:", error)
-        throw error
+      if (insertError) {
+        console.error("Error saving intake form:", insertError)
+        throw insertError
       }
 
-      // Update the parent profile to indicate that the intake form has been completed
+      // Update the parent profile to store intake completion in preferences_json
+      const { data: profileData, error: profileFetchError } = await supabase
+        .from("parent_profile")
+        .select("preferences_json")
+        .eq("id", parentId)
+        .single()
+
+      if (profileFetchError && profileFetchError.code !== "PGRST116") {
+        console.error("Error fetching parent profile:", profileFetchError)
+        // Non-critical, continue
+      }
+
+      // Get existing preferences or create new object
+      const existingPreferences = profileData?.preferences_json || {}
+
+      // Update preferences to include intake completion
+      const updatedPreferences = {
+        ...existingPreferences,
+        has_completed_intake: true,
+        intake_completed_at: new Date().toISOString(),
+      }
+
+      // Update the parent profile
       const { error: updateError } = await supabase
         .from("parent_profile")
-        .update({ has_completed_intake: true })
+        .update({ preferences_json: updatedPreferences })
         .eq("id", parentId)
 
       if (updateError) {
@@ -311,17 +394,12 @@ export function ParentIntakeForm({ parentId, parentName }: { parentId: string; p
         // Non-critical, continue
       }
 
-      // Show summary screen instead of navigating directly to dashboard
-      setShowSummary(true)
+      // Redirect to the intake confirmation page with the parent ID
+      router.push(`/intake-confirmation?id=${parentId}`)
     } catch (error) {
       console.error("Error submitting form:", error)
-      // Show an error message to the user
+      setError("There was an error submitting the form. Please try again.")
     }
-  }
-
-  const handleGoToDashboard = () => {
-    // Navigate to the parent dashboard
-    router.push(`/parent/dashboard?id=${parentId}`)
   }
 
   // Don't show progress bar on intro screen or summary screen
@@ -329,7 +407,53 @@ export function ParentIntakeForm({ parentId, parentName }: { parentId: string; p
 
   // If showing summary screen, render that instead of the form
   if (showSummary) {
-    return <SummaryScreen formData={formData} onContinue={handleGoToDashboard} />
+    return <SummaryScreen formData={formData} onContinue={() => router.push(`/intake-confirmation?id=${parentId}`)} />
+  }
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="container mx-auto px-4 max-w-3xl py-8 flex justify-center items-center min-h-[50vh]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading your profile...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="container mx-auto px-4 max-w-3xl py-8">
+        <Card className="bg-gray-900 border-gray-800 shadow-lg p-6">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-red-500 mb-4">Error</h2>
+            <p className="text-gray-300 mb-6">{error}</p>
+            <Button onClick={() => router.push("/login")} className="bg-white text-gray-900 hover:bg-gray-200">
+              Return to Login
+            </Button>
+          </div>
+        </Card>
+      </div>
+    )
+  }
+
+  // Show not logged in state
+  if (!parentId) {
+    return (
+      <div className="container mx-auto px-4 max-w-3xl py-8">
+        <Card className="bg-gray-900 border-gray-800 shadow-lg p-6">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-yellow-500 mb-4">Not Logged In</h2>
+            <p className="text-gray-300 mb-6">You need to be logged in to complete the intake form.</p>
+            <Button onClick={() => router.push("/login")} className="bg-white text-gray-900 hover:bg-gray-200">
+              Go to Login
+            </Button>
+          </div>
+        </Card>
+      </div>
+    )
   }
 
   return (

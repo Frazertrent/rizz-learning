@@ -1,7 +1,5 @@
 "use client"
 
-import type React from "react"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -15,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Separator } from "@/components/ui/separator"
+import { supabase } from "@/lib/supabase"
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -30,6 +29,7 @@ const formSchema = z.object({
 
 export function SignupForm() {
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -41,16 +41,37 @@ export function SignupForm() {
     },
   })
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true)
+    setError(null)
 
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false)
+    try {
+      // Sign up with Supabase
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: values.email,
+        password: values.password,
+        options: {
+          data: {
+            full_name: values.name,
+          },
+        },
+      })
+
+      if (signUpError) throw signUpError
+
+      // Store the user in localStorage for later use
+      if (data.user) {
+        localStorage.setItem("userId", data.user.id)
+      }
+
       // Redirect to confirmation page
       router.push("/signup/confirmation")
-    }, 1000)
+    } catch (err) {
+      console.error("Signup error:", err)
+      setError(err instanceof Error ? err.message : "An error occurred during signup")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -114,6 +135,9 @@ export function SignupForm() {
               </FormItem>
             )}
           />
+
+          {error && <div className="text-red-400 text-sm p-2 bg-red-400/10 rounded-md">{error}</div>}
+
           <div className="space-y-3 pt-2">
             <div className="text-sm text-gray-500 mb-1 text-center">Step 2</div>
             <Button

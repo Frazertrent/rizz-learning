@@ -76,9 +76,9 @@ export default async function ProfileConfirmationPage({
             <div className="space-y-4">
               <h3 className="text-xl font-semibold">Next Steps</h3>
               <p className="text-gray-300">
-                Now you can either visit your parent dashboard, or you can complete the most important step of all, and
-                complete the full parent intake form. This will go into all the detail that is needed to craft the most
-                perfect curriculum path forward available for your child from all resources available.
+                Now you can either visit your parent dashboard, or you can take the most important step and plan your
+                first term. This will help you organize your curriculum and create a personalized learning schedule for
+                each child.
               </p>
             </div>
           </CardContent>
@@ -92,8 +92,8 @@ export default async function ProfileConfirmationPage({
               asChild
               className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 min-w-[200px]"
             >
-              <Link href={`/parent-intake?id=${parentId}`}>
-                Complete Parent Intake Form <ArrowRight className="ml-2 h-4 w-4" />
+              <Link href={`/parent/term-plan-builder?id=${parentId}`}>
+                Let's Plan Your First Term <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
           </CardFooter>

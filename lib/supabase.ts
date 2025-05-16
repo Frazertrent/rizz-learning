@@ -22,7 +22,24 @@ export async function getCurrentUser() {
 
 // Helper function to get students for a parent
 export async function getStudentsForParent(parentId: string) {
-  const { data, error } = await supabase.from("student").select("*").eq("parent_id", parentId)
+  // If parentId is undefined, null, or empty string, return empty array
+  if (!parentId) {
+    console.log("No parent ID provided, returning empty student list")
+    return []
+  }
+
+  // Clean the parentId to ensure it's a valid UUID format
+  const cleanParentId = parentId.replace(/[^a-fA-F0-9-]/g, "")
+
+  // Validate that we have a proper UUID format (basic check)
+  if (cleanParentId.length < 32) {
+    console.error("Invalid parent ID format:", parentId)
+    return []
+  }
+
+  console.log("Fetching students for parent ID:", cleanParentId)
+
+  const { data, error } = await supabase.from("student").select("*").eq("parent_id", cleanParentId)
 
   if (error) {
     console.error("Error fetching students:", error)
@@ -46,7 +63,10 @@ export async function createStudent(studentData: any) {
 
 // Helper function to update a student
 export async function updateStudent(studentId: string, updateData: any) {
-  const { data, error } = await supabase.from("student").update(updateData).eq("id", studentId).select()
+  // Clean the studentId to ensure it's a valid UUID format
+  const cleanStudentId = studentId.replace(/[^a-fA-F0-9-]/g, "")
+
+  const { data, error } = await supabase.from("student").update(updateData).eq("id", cleanStudentId).select()
 
   if (error) {
     console.error("Error updating student:", error)
@@ -58,7 +78,10 @@ export async function updateStudent(studentId: string, updateData: any) {
 
 // Helper function to get a parent profile
 export async function getParentProfile(parentId: string) {
-  const { data, error } = await supabase.from("parent_profile").select("*").eq("id", parentId).single()
+  // Clean the parentId to ensure it's a valid UUID format
+  const cleanParentId = parentId.replace(/[^a-fA-F0-9-]/g, "")
+
+  const { data, error } = await supabase.from("parent_profile").select("*").eq("id", cleanParentId).single()
 
   if (error) {
     console.error("Error fetching parent profile:", error)
@@ -70,6 +93,11 @@ export async function getParentProfile(parentId: string) {
 
 // Helper function to create or update a parent profile
 export async function upsertParentProfile(profileData: any) {
+  // Ensure the ID is clean if it exists in the profileData
+  if (profileData.id) {
+    profileData.id = profileData.id.replace(/[^a-fA-F0-9-]/g, "")
+  }
+
   const { data, error } = await supabase.from("parent_profile").upsert(profileData).select()
 
   if (error) {
