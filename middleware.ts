@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { createServerSupabaseClient } from "@/lib/supabase-server"
+import { createClient } from "@supabase/supabase-js"
+
+// Create a Supabase client for the middleware
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
 export async function middleware(request: NextRequest) {
   // Get the pathname of the request
@@ -37,35 +40,18 @@ export async function middleware(request: NextRequest) {
   // If it's a term plan page, check for userId cookie as a fallback
   if (isTermPlanPage) {
     const userIdCookie = request.cookies.get("userId")
-    const authCookie = request.cookies.get("sb-auth-token")
-
-    // Allow access if userId cookie exists or if auth cookie exists
-    if (userIdCookie || authCookie) {
+    if (userIdCookie) {
+      // Allow access if userId cookie exists
       return NextResponse.next()
-    }
-
-    // Also check localStorage via a custom header that might be set by the client
-    const userIdHeader = request.headers.get("x-user-id")
-    if (userIdHeader) {
-      const response = NextResponse.next()
-      // Set the userId cookie from the header
-      response.cookies.set("userId", userIdHeader, {
-        path: "/",
-        maxAge: 60 * 60 * 24 * 7, // 1 week
-      })
-      return response
     }
   }
 
   if (isProtectedPath && !isTermPlanPage) {
     try {
-      const supabase = createServerSupabaseClient()
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
+      // Get the session from the request cookie
+      const authCookie = request.cookies.get("sb-auth-token")
 
-      // If user is not authenticated, redirect to login
-      if (!session) {
+      if (!authCookie) {
         // For parent-intake, set a cookie to track redirect attempts
         const loginUrl = new URL("/login", request.url)
         loginUrl.searchParams.set("redirect", path)

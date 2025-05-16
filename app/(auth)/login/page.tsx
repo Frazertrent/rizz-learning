@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { Suspense } from "react"
 import { LoginForm } from "@/components/auth/login-form"
 import { Logo } from "@/components/logo"
 
@@ -8,10 +9,15 @@ export const metadata: Metadata = {
   description: "Login to your account",
 }
 
+// Create a client component wrapper for the search params
+function LoginFormWithSearchParams({ searchParams }: { searchParams?: { redirect?: string } }) {
+  return <LoginForm searchParams={searchParams} />
+}
+
 export default function LoginPage({
   searchParams,
 }: {
-  searchParams: { redirect?: string }
+  searchParams?: { redirect?: string }
 }) {
   return (
     <div className="container flex h-screen w-screen flex-col items-center justify-center">
@@ -23,7 +29,9 @@ export default function LoginPage({
           <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
           <p className="text-sm text-muted-foreground">Enter your email to sign in to your account</p>
         </div>
-        <LoginForm />
+        <Suspense fallback={<div className="p-4 text-center">Loading login form...</div>}>
+          <LoginFormWithSearchParams searchParams={searchParams} />
+        </Suspense>
       </div>
     </div>
   )

@@ -1,66 +1,55 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import Link from "next/link"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
-import * as z from "zod"
-import { ArrowRight, Lock } from "lucide-react"
+import type React from "react"
 
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Separator } from "@/components/ui/separator"
+import { Label } from "@/components/ui/label"
+import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
 
-const formSchema = z.object({
-  email: z.string().email({
-    message: "Please enter a valid email address.",
-  }),
-  password: z.string().min(1, {
-    message: "Password is required.",
-  }),
-})
-
-export function LoginForm() {
+export function LoginForm({ searchParams }: { searchParams?: { redirect?: string } }) {
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const redirect = searchParams.get("redirect") || "/parent"
+  const { toast } = useToast()
+  const redirectPath = searchParams?.redirect || "/parent/dashboard"
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
-  })
-
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
     setIsLoading(true)
-    setError(null)
 
     try {
-      // Sign in with Supabase
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email: values.email,
-        password: values.password,
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       })
 
-      if (signInError) throw signInError
+      if (error) {
+        throw error
+      }
 
-      // Store the user in localStorage for later use
+      // Store user ID in localStorage for persistence
       if (data.user) {
         localStorage.setItem("userId", data.user.id)
       }
 
-      // Redirect to the specified redirect URL or dashboard
-      router.push(redirect)
-    } catch (err) {
-      console.error("Login error:", err)
-      setError(err instanceof Error ? err.message : "Invalid email or password")
+      toast({
+        title: "Login successful",
+        description: "You have been logged in successfully.",
+      })
+
+      // Redirect to the specified path or dashboard
+      router.push(redirectPath)
+    } catch (error: any) {
+      toast({
+        title: "Login failed",
+        description: error.message || "An error occurred during login.",
+        variant: "destructive",
+      })
     } finally {
       setIsLoading(false)
     }
@@ -68,87 +57,53 @@ export function LoginForm() {
 
   return (
     <div className="grid gap-6">
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-white">Email</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="Enter your email"
-                    type="email"
-                    {...field}
-                    className="bg-gray-900 border-gray-800 text-white placeholder:text-gray-500 rounded-lg"
-                  />
-                </FormControl>
-                <FormMessage className="text-red-400" />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="password"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-white">Password</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="Enter your password"
-                    type="password"
-                    {...field}
-                    className="bg-gray-900 border-gray-800 text-white placeholder:text-gray-500 rounded-lg"
-                  />
-                </FormControl>
-                <FormMessage className="text-red-400" />
-                <div className="flex justify-between items-center mt-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <Lock className="h-3.5 w-3.5 text-gray-500" />
-                    <p className="text-xs text-gray-500">Secure login</p>
-                  </div>
-                  <Link href="/forgot-password" className="text-xs text-purple-400 hover:text-purple-300">
-                    Forgot password?
-                  </Link>
-                </div>
-              </FormItem>
-            )}
-          />
-
-          {error && <div className="text-red-400 text-sm p-2 bg-red-400/10 rounded-md">{error}</div>}
-
-          <Button
-            type="submit"
-            className="w-full bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600 text-white rounded-xl h-12 font-medium shadow-md transition-all duration-200 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              "Signing in..."
-            ) : (
-              <span className="flex items-center justify-center gap-2">
-                Sign In
-                <ArrowRight className="h-4 w-4" />
-              </span>
-            )}
+      <form onSubmit={handleSubmit}>
+        <div className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              placeholder="name@example.com"
+              type="email"
+              autoCapitalize="none"
+              autoComplete="email"
+              autoCorrect="off"
+              disabled={isLoading}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div className="grid gap-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">Password</Label>
+              <Button variant="link" className="px-0 font-normal h-auto" asChild>
+                <a href="/forgot-password">Forgot password?</a>
+              </Button>
+            </div>
+            <Input
+              id="password"
+              placeholder="••••••••"
+              type="password"
+              autoComplete="current-password"
+              disabled={isLoading}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          <Button disabled={isLoading} type="submit">
+            {isLoading ? "Signing in..." : "Sign In"}
           </Button>
-        </form>
-      </Form>
-
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <Separator className="w-full bg-gray-800" />
         </div>
-        <div className="relative flex justify-center text-xs">
-          <span className="bg-gray-900/50 backdrop-blur-sm px-2 text-gray-400">OR</span>
-        </div>
-      </div>
-
-      <div className="text-center text-sm text-gray-400">
-        Don't have an account?{" "}
-        <Link href="/signup" className="text-white hover:underline">
-          Sign up
-        </Link>
+      </form>
+      <div className="text-center">
+        <p className="text-sm text-muted-foreground">
+          Don't have an account?{" "}
+          <Button variant="link" className="px-0 font-normal h-auto" asChild>
+            <a href="/signup">Sign up</a>
+          </Button>
+        </p>
       </div>
     </div>
   )

@@ -3,7 +3,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle, ArrowRight } from "lucide-react"
-import { createServerSupabaseClient } from "@/lib/supabase-server"
+import { supabaseServer } from "@/lib/supabase-server"
 
 export default async function ProfileConfirmationPage({
   searchParams,
@@ -16,7 +16,9 @@ export default async function ProfileConfirmationPage({
     redirect("/profile-setup")
   }
 
-  const supabase = createServerSupabaseClient()
+  // Use supabaseServer instead of createServerSupabaseClient
+  // This doesn't rely on cookies and is safe to use outside request contexts
+  const supabase = supabaseServer
 
   // Fetch parent profile
   const { data: parentProfile, error: parentError } = await supabase
