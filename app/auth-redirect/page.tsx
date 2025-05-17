@@ -26,12 +26,12 @@ export default function AuthRedirectPage() {
         }
 
         if (data.session) {
-          console.log("User is authenticated, proceeding with redirect to /parent-intake")
+          console.log("User is authenticated, proceeding with redirect to /parent")
           setIsAuthenticated(true)
 
           // Short delay before redirect
           setTimeout(() => {
-            window.location.href = "/parent-intake"
+            window.location.href = "/parent"
           }, 500)
         } else {
           console.log("User is not authenticated, redirecting to login")
@@ -57,7 +57,7 @@ export default function AuthRedirectPage() {
 
   // Manual redirect function as a fallback
   const handleManualRedirect = () => {
-    window.location.href = "/parent-intake"
+    window.location.href = "/parent"
   }
 
   return (

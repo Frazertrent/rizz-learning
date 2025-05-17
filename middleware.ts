@@ -29,7 +29,8 @@ export async function middleware(request: NextRequest) {
   }
 
   // Check if the path is protected
-  const isProtectedPath = path.startsWith("/parent/") || path.startsWith("/student/") || path === "/parent-intake"
+  const isProtectedPath =
+    (path.startsWith("/parent/") && path !== "/parent") || path.startsWith("/student/") || path === "/parent-intake"
 
   // Add exceptions for term plan pages and actions
   const isTermPlanPage =
@@ -46,7 +47,16 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  if (isProtectedPath && !isTermPlanPage) {
+  // Special case for /parent route
+  if (path === "/parent") {
+    const userIdCookie = request.cookies.get("userId")
+    if (userIdCookie) {
+      // Allow access if userId cookie exists
+      return NextResponse.next()
+    }
+  }
+
+  if (isProtectedPath) {
     try {
       // Get the session from the request cookie
       const authCookie = request.cookies.get("sb-auth-token")
