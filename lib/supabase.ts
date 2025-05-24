@@ -107,3 +107,53 @@ export async function upsertParentProfile(profileData: any) {
 
   return data[0]
 }
+
+// Helper function to get a term plan by ID
+export async function getTermPlanById(termPlanId: string) {
+  if (!termPlanId) {
+    console.error("No term plan ID provided")
+    return null
+  }
+
+  try {
+    console.log("Fetching term plan with ID:", termPlanId)
+
+    const { data, error } = await supabase.from("term_plans").select("*").eq("id", termPlanId).single()
+
+    if (error) {
+      console.error("Error fetching term plan:", error)
+      return null
+    }
+
+    console.log("Term plan fetched successfully:", data)
+    return data
+  } catch (error) {
+    console.error("Exception fetching term plan:", error)
+    return null
+  }
+}
+
+// Helper function to get student term plans for a term plan
+export async function getStudentTermPlans(termPlanId: string) {
+  if (!termPlanId) {
+    console.error("No term plan ID provided")
+    return []
+  }
+
+  try {
+    console.log("Fetching student term plans for term plan ID:", termPlanId)
+
+    const { data, error } = await supabase.from("student_term_plans").select("*").eq("term_plan_id", termPlanId)
+
+    if (error) {
+      console.error("Error fetching student term plans:", error)
+      return []
+    }
+
+    console.log("Student term plans fetched successfully:", data)
+    return data || []
+  } catch (error) {
+    console.error("Exception fetching student term plans:", error)
+    return []
+  }
+}

@@ -16,7 +16,7 @@ import { CheckCircle2Icon, ChevronLeftIcon, ChevronRightIcon, SaveIcon, Users } 
 import { getStudentsForParent, getCurrentUser } from "@/lib/supabase"
 import { Skeleton } from "@/components/ui/skeleton"
 import Link from "next/link"
-import { saveTermPlan } from "@/app/actions/save-term-plan"
+import { saveTermPlan, loadTermPlanForEditing } from "@/app/actions/save-term-plan"
 
 // Define the student-specific data structure
 export type StudentTermPlanData = {
@@ -49,6 +49,8 @@ export type StudentTermPlanData = {
       subject: string
       course: string
       type: "subject" | "activity" | "break"
+      platformUrl?: string
+      needPlatformHelp?: boolean | null
     }[]
   }
 }
@@ -157,9 +159,10 @@ const initialStudentData: Omit<StudentTermPlanData, "studentId" | "firstName"> =
 
 interface TermPlanBuilderProps {
   parentId?: string
+  termPlanId?: string
 }
 
-export function TermPlanBuilder({ parentId }: TermPlanBuilderProps) {
+export function TermPlanBuilder({ parentId, termPlanId }: TermPlanBuilderProps) {
   const [currentStep, setCurrentStep] = useState(1)
   const [termPlanData, setTermPlanData] = useState<TermPlanData>(initialTermPlanData)
   const [students, setStudents] = useState<{ id: string; firstName: string; fullName: string }[]>([])
@@ -167,13 +170,15 @@ export function TermPlanBuilder({ parentId }: TermPlanBuilderProps) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
+  const [isEditMode, setIsEditMode] = useState(!!termPlanId)
+  const [existingTermPlanId, setExistingTermPlanId] = useState<string | undefined>(termPlanId)
   const router = useRouter()
 
   const totalSteps = 6
 
-  // Fetch students from Supabase
+  // Fetch students and term plan data if in edit mode
   useEffect(() => {
-    async function fetchStudents() {
+    async function fetchData() {
       try {
         setLoading(true)
 
@@ -262,14 +267,159 @@ export function TermPlanBuilder({ parentId }: TermPlanBuilderProps) {
             }
           })
 
-          setTermPlanData((prev) => ({
-            ...prev,
-            students: initializedStudents,
-          }))
+          // If we're in edit mode, load the existing term plan
+          if (termPlanId) {
+            console.log("Loading existing term plan with ID:", termPlanId)
 
-          // Set the first student as active
-          if (formattedStudents.length > 0) {
-            setActiveStudentId(formattedStudents[0].id)
+            // First, try to get from sessionStorage (in case user clicked Edit from dashboard)
+            const storedPlan = sessionStorage.getItem("termPlan")
+            if (storedPlan) {
+              try {
+                const parsedPlan = JSON.parse(storedPlan)
+                if (parsedPlan && Object.keys(parsedPlan.students || {}).length > 0) {
+                  console.log("Using term plan data from sessionStorage")
+                  setTermPlanData(parsedPlan)
+
+                  // Set the first student as active
+                  if (Object.keys(parsedPlan.students).length > 0) {
+                    setActiveStudentId(Object.keys(parsedPlan.students)[0])
+                  }
+
+                  setLoading(false)
+                  return
+                }
+              } catch (e) {
+                console.error("Error parsing stored term plan:", e)
+              }
+            }
+
+            // If not in sessionStorage, load from the database
+            const result = await loadTermPlanForEditing(termPlanId)
+
+            if (result.success) {
+              const { termPlan, studentTermPlans, studentCoursePlatforms } = result
+
+              // Convert the database data to our TermPlanData format
+              const loadedTermPlanData: TermPlanData = {
+                academicTerm: termPlan.academic_term || "",
+                termType: termPlan.term_type || "",
+                termYear: termPlan.term_year || new Date().getFullYear(),
+                goals: termPlan.goals || [],
+                students: {},
+              }
+
+              // Process each student term plan
+              for (const studentTermPlan of studentTermPlans) {
+                const studentId = studentTermPlan.student_id
+                const student = formattedStudents.find((s) => s.id === studentId)
+
+                if (!student) continue
+
+                // Get the student's course platforms
+                const platforms = studentCoursePlatforms[studentTermPlan.id] || []
+
+                // Initialize the student data with the stored data
+                const studentData: StudentTermPlanData = {
+                  studentId,
+                  firstName: student.firstName,
+                  schedule: studentTermPlan.schedule || JSON.parse(JSON.stringify(initialStudentData.schedule)),
+                  activities: studentTermPlan.activities || [],
+                  customActivities: studentTermPlan.custom_activities || [],
+                  subjects: studentTermPlan.subjects || {
+                    core: [],
+                    extended: [],
+                    courses: {},
+                  },
+                  blockAssignments: studentTermPlan.block_assignments || {},
+                }
+
+                // Process platform data and add it to block assignments
+                if (platforms.length > 0) {
+                  // Make sure blockAssignments is initialized
+                  if (!studentData.blockAssignments) {
+                    studentData.blockAssignments = {}
+                  }
+
+                  // Group platforms by day
+                  for (const platform of platforms) {
+                    const { day, time, subject, course, platform_url, platform_help } = platform
+
+                    if (!day || !time || !subject) continue
+
+                    // Initialize the day if it doesn't exist
+                    if (!studentData.blockAssignments[day]) {
+                      studentData.blockAssignments[day] = []
+                    }
+
+                    // Check if this block already exists
+                    const existingBlockIndex = studentData.blockAssignments[day].findIndex(
+                      (block) => block.time === time && block.subject === subject,
+                    )
+
+                    if (existingBlockIndex >= 0) {
+                      // Update existing block
+                      studentData.blockAssignments[day][existingBlockIndex] = {
+                        ...studentData.blockAssignments[day][existingBlockIndex],
+                        course: course || "",
+                        platformUrl: platform_url || "",
+                        needPlatformHelp:
+                          platform_help === "needs_help" ? true : platform_help === "no_help_needed" ? false : null,
+                      }
+                    } else {
+                      // Add new block
+                      studentData.blockAssignments[day].push({
+                        time,
+                        subject,
+                        course: course || "",
+                        type: "subject", // Default type
+                        platformUrl: platform_url || "",
+                        needPlatformHelp:
+                          platform_help === "needs_help" ? true : platform_help === "no_help_needed" ? false : null,
+                      })
+                    }
+                  }
+                }
+
+                // Add the student data to the term plan
+                loadedTermPlanData.students[studentId] = studentData
+              }
+
+              // Set the term plan data
+              setTermPlanData(loadedTermPlanData)
+
+              // Set the first student as active
+              if (Object.keys(loadedTermPlanData.students).length > 0) {
+                setActiveStudentId(Object.keys(loadedTermPlanData.students)[0])
+              }
+
+              // Store the term plan ID for saving later
+              setExistingTermPlanId(termPlanId)
+              setIsEditMode(true)
+            } else {
+              console.error("Error loading term plan:", result.error)
+
+              // Fall back to initializing a new term plan
+              setTermPlanData((prev) => ({
+                ...prev,
+                students: initializedStudents,
+              }))
+
+              // Set the first student as active
+              if (formattedStudents.length > 0) {
+                setActiveStudentId(formattedStudents[0].id)
+              }
+            }
+          } else {
+            // Not in edit mode, initialize a new term plan
+            setTermPlanData((prev) => ({
+              ...prev,
+              students: initializedStudents,
+            }))
+
+            // Set the first student as active
+            if (formattedStudents.length > 0) {
+              setActiveStudentId(formattedStudents[0].id)
+            }
           }
         } else {
           // If no students found, create a demo student for testing
@@ -305,8 +455,8 @@ export function TermPlanBuilder({ parentId }: TermPlanBuilderProps) {
       }
     }
 
-    fetchStudents()
-  }, [parentId, router])
+    fetchData()
+  }, [parentId, termPlanId, router])
 
   useEffect(() => {
     // Save the current term plan data to sessionStorage whenever it changes
@@ -319,7 +469,7 @@ export function TermPlanBuilder({ parentId }: TermPlanBuilderProps) {
   // Try to load existing term plan data from sessionStorage
   useEffect(() => {
     const storedPlan = sessionStorage.getItem("termPlan")
-    if (storedPlan && !loading) {
+    if (storedPlan && !loading && !isEditMode) {
       try {
         const parsedPlan = JSON.parse(storedPlan)
 
@@ -336,7 +486,7 @@ export function TermPlanBuilder({ parentId }: TermPlanBuilderProps) {
         console.error("Error parsing stored term plan:", error)
       }
     }
-  }, [loading, activeStudentId])
+  }, [loading, activeStudentId, isEditMode])
 
   const updateTermPlanData = (data: Partial<TermPlanData>) => {
     setTermPlanData((prev) => ({ ...prev, ...data }))
@@ -350,10 +500,16 @@ export function TermPlanBuilder({ parentId }: TermPlanBuilderProps) {
       // Create a new object to avoid mutation
       const updatedStudents = { ...prev.students }
 
+      // Deep clone the existing student data
+      const existingStudentData = JSON.parse(JSON.stringify(updatedStudents[cleanStudentId] || {}))
+
+      // Create a deep clone of the incoming data to avoid reference issues
+      const clonedData = JSON.parse(JSON.stringify(data))
+
       // Only update the specific student's data
       updatedStudents[cleanStudentId] = {
-        ...updatedStudents[cleanStudentId],
-        ...data,
+        ...existingStudentData,
+        ...clonedData,
       }
 
       return {
@@ -419,6 +575,7 @@ export function TermPlanBuilder({ parentId }: TermPlanBuilderProps) {
     }
     // Step 6: Block Assignments
     else if (currentStep === 6) {
+      // Ensure deep cloning of block assignments
       updatedData.blockAssignments = sourceStudent.blockAssignments
         ? JSON.parse(JSON.stringify(sourceStudent.blockAssignments))
         : {}
@@ -582,7 +739,7 @@ export function TermPlanBuilder({ parentId }: TermPlanBuilderProps) {
 
     switch (currentStep) {
       case 1:
-        return "Let's get started planning your term!"
+        return isEditMode ? "Let's update your term plan!" : "Let's get started planning your term!"
       case 2:
         return "Great choice! Now let's define what you want to accomplish."
       case 3:
@@ -626,9 +783,11 @@ export function TermPlanBuilder({ parentId }: TermPlanBuilderProps) {
       }
 
       console.log("Saving term plan with user ID:", currentUserId)
+      console.log("Is edit mode:", isEditMode)
+      console.log("Existing term plan ID:", existingTermPlanId)
 
       // Save to Supabase using the server action
-      const result = await saveTermPlan(termPlanData, currentUserId)
+      const result = await saveTermPlan(termPlanData, currentUserId, existingTermPlanId)
 
       if (result.success) {
         // Navigate to the parent dashboard
@@ -686,7 +845,9 @@ export function TermPlanBuilder({ parentId }: TermPlanBuilderProps) {
   return (
     <div className="space-y-8">
       <Card className="p-6 bg-gray-800 border-gray-700">
-        <h2 className="text-2xl font-semibold mb-4 text-white">Phase 1 – Start With What You Know</h2>
+        <h2 className="text-2xl font-semibold mb-4 text-white">
+          {isEditMode ? "Edit Term Plan" : "Phase 1 – Start With What You Know"}
+        </h2>
 
         {/* Progress Indicator */}
         <div className="flex items-center mb-6 overflow-x-auto pb-2">
@@ -802,7 +963,7 @@ export function TermPlanBuilder({ parentId }: TermPlanBuilderProps) {
                 ) : (
                   <>
                     <SaveIcon className="w-4 h-4" />
-                    Save Plan
+                    {isEditMode ? "Update Plan" : "Save Plan"}
                   </>
                 )}
               </Button>

@@ -4,23 +4,26 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createClient } from "@supabase/supabase-js"
-import { Target, Users, AlertCircle } from "lucide-react"
+import { Target, Users, AlertCircle, Calendar } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useAuth } from "@/components/auth-provider"
+import { AddStudentModal } from "@/components/parent/add-student-modal"
+import { toast } from "@/hooks/use-toast"
 
 export default function ParentDashboardPage() {
   const [loading, setLoading] = useState(true)
   const [termPlans, setTermPlans] = useState<any[]>([])
+  const [students, setStudents] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
   const { user } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
-    async function fetchTermPlans() {
+    async function fetchData() {
       try {
         setLoading(true)
 
@@ -57,6 +60,21 @@ export default function ParentDashboardPage() {
 
         // Create Supabase client
         const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
+        // Fetch students for the user
+        const { data: studentData, error: studentError } = await supabase
+          .from("student")
+          .select("*")
+          .eq("parent_id", userId)
+
+        if (studentError) {
+          console.error("Error fetching students:", studentError)
+          setError(studentError.message)
+          setLoading(false)
+          return
+        }
+
+        setStudents(studentData || [])
 
         // Fetch term plans for the user
         const { data, error: fetchError } = await supabase
@@ -102,7 +120,7 @@ export default function ParentDashboardPage() {
       }
     }
 
-    fetchTermPlans()
+    fetchData()
   }, [user])
 
   // Function to format the term name
@@ -159,6 +177,119 @@ export default function ParentDashboardPage() {
     })
   }
 
+  // Function to handle viewing term plan details
+  const handleViewTermPlan = (termPlan: any) => {
+    try {
+      console.log("Opening term plan:", termPlan)
+
+      // Ensure we have a valid term plan object
+      if (!termPlan || !termPlan.id) {
+        toast({
+          title: "Error",
+          description: "Invalid term plan data. Please try again.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Process the term plan data to ensure it has the expected structure
+      const processedTermPlan = {
+        id: termPlan.id,
+        academicTerm: termPlan.academic_term || "",
+        termType: termPlan.term_type || "",
+        termYear: termPlan.term_year || new Date().getFullYear(),
+        goals: termPlan.goals || [],
+        students: {},
+      }
+
+      // If data is a string, try to parse it
+      if (termPlan.data) {
+        try {
+          const parsedData = typeof termPlan.data === "string" ? JSON.parse(termPlan.data) : termPlan.data
+
+          // Merge the parsed data with our processed term plan
+          if (parsedData && typeof parsedData === "object") {
+            // Copy over specific fields we care about
+            if (parsedData.academicTerm) processedTermPlan.academicTerm = parsedData.academicTerm
+            if (parsedData.termType) processedTermPlan.termType = parsedData.termType
+            if (parsedData.termYear) processedTermPlan.termYear = parsedData.termYear
+            if (Array.isArray(parsedData.goals)) processedTermPlan.goals = parsedData.goals
+
+            // Handle students data
+            if (parsedData.students && typeof parsedData.students === "object") {
+              processedTermPlan.students = parsedData.students
+            }
+          }
+        } catch (e) {
+          console.error("Error parsing term plan data:", e)
+        }
+      }
+
+      // Store the processed term plan in localStorage
+      localStorage.setItem(`termPlan_${termPlan.id}`, JSON.stringify(processedTermPlan))
+      console.log("Term plan saved to localStorage:", processedTermPlan)
+
+      // Navigate to the term plan overview page
+      router.push(`/parent/term-plan-overview?id=${termPlan.id}`)
+    } catch (error) {
+      console.error("Error navigating to term plan:", error)
+      toast({
+        title: "Error",
+        description: "Failed to open term plan. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Function to handle editing term plan
+  const handleEditTermPlan = (termPlan: any) => {
+    try {
+      // Process the term plan data the same way as in handleViewTermPlan
+      const processedTermPlan = {
+        id: termPlan.id,
+        academicTerm: termPlan.academic_term || "",
+        termType: termPlan.term_type || "",
+        termYear: termPlan.term_year || new Date().getFullYear(),
+        goals: termPlan.goals || [],
+        students: {},
+      }
+
+      // If data is a string, try to parse it
+      if (termPlan.data) {
+        try {
+          const parsedData = typeof termPlan.data === "string" ? JSON.parse(termPlan.data) : termPlan.data
+
+          // Merge the parsed data with our processed term plan
+          if (parsedData && typeof parsedData === "object") {
+            if (parsedData.academicTerm) processedTermPlan.academicTerm = parsedData.academicTerm
+            if (parsedData.termType) processedTermPlan.termType = parsedData.termType
+            if (Array.isArray(parsedData.goals)) processedTermPlan.goals = parsedData.goals
+
+            if (parsedData.students && typeof parsedData.students === "object") {
+              processedTermPlan.students = parsedData.students
+            }
+          }
+        } catch (e) {
+          console.error("Error parsing term plan data:", e)
+        }
+      }
+
+      // Store the processed term plan in localStorage
+      localStorage.setItem(`termPlan_${termPlan.id}`, JSON.stringify(processedTermPlan))
+      console.log("Term plan saved to localStorage for editing:", processedTermPlan)
+
+      // Navigate to the term plan overview page with edit mode
+      router.push(`/parent/term-plan-overview?id=${termPlan.id}&edit=true`)
+    } catch (error) {
+      console.error("Error navigating to edit term plan:", error)
+      toast({
+        title: "Error",
+        description: "Failed to open term plan editor. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8 space-y-8">
@@ -209,18 +340,21 @@ export default function ParentDashboardPage() {
         </Button>
       </div>
 
-      {termPlans.length === 0 ? (
-        <Card className="bg-gray-800 border-gray-700 p-6 text-center">
-          <h2 className="text-xl font-semibold mb-4">No Term Plans Found</h2>
-          <p className="text-gray-400 mb-6">You haven't created any term plans yet.</p>
-          <Button asChild className="bg-blue-600 hover:bg-blue-700">
-            <Link href="/parent/term-plan-builder">Create Your First Term Plan</Link>
-          </Button>
+      {/* Term Plans Section */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Calendar className="h-6 w-6 text-blue-400" />
+          <h2 className="text-2xl font-semibold">Term Plans</h2>
+        </div>
+        <Card className="bg-gray-800 border-gray-700 p-4 w-48">
+          <CardTitle className="text-center">Hello Parent</CardTitle>
         </Card>
-      ) : (
-        <>
-          <h2 className="text-2xl font-semibold">Your Term Plans</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      </div>
+
+      <div className="space-y-6">
+        {/* Term Plans Cards */}
+        {termPlans.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {termPlans.map((termPlan) => (
               <Card key={termPlan.id} className="bg-gray-800 border-gray-700 hover:border-blue-600 transition-all">
                 <CardHeader className="bg-gradient-to-r from-blue-900/50 to-purple-900/30 rounded-t-lg">
@@ -260,17 +394,13 @@ export default function ParentDashboardPage() {
                   </div>
                 </CardContent>
                 <CardFooter className="flex gap-2">
-                  <Button asChild className="flex-1 bg-blue-600 hover:bg-blue-700">
-                    <Link href={`/parent/term-plan-overview?id=${termPlan.id}`}>View Details</Link>
+                  <Button className="flex-1 bg-blue-600 hover:bg-blue-700" onClick={() => handleViewTermPlan(termPlan)}>
+                    View Details
                   </Button>
                   <Button
                     variant="outline"
                     className="flex-1 border-blue-600 text-blue-400 hover:bg-blue-900/20"
-                    onClick={() => {
-                      // Store the term plan in session storage and navigate to edit page
-                      sessionStorage.setItem("termPlan", JSON.stringify(termPlan.data || termPlan))
-                      router.push("/parent/term-plan-builder")
-                    }}
+                    onClick={() => handleEditTermPlan(termPlan)}
                   >
                     Edit
                   </Button>
@@ -278,8 +408,64 @@ export default function ParentDashboardPage() {
               </Card>
             ))}
           </div>
-        </>
-      )}
+        ) : (
+          <div className="text-center py-12">
+            <p className="text-gray-500 dark:text-gray-400">
+              No term plans yet. Create your first term plan to get started.
+            </p>
+            <Button asChild className="mt-4 bg-blue-600 hover:bg-blue-700">
+              <Link href="/parent/term-plan-builder">Create Term Plan</Link>
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Your Students Section */}
+      <div className="flex items-center gap-2 mt-8 mb-4">
+        <Users className="h-6 w-6 text-blue-400" />
+        <h2 className="text-2xl font-semibold">Your Students</h2>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {students.map((student) => (
+          <Card key={student.id} className="bg-gray-800 border-gray-700 hover:border-blue-600 transition-all">
+            <CardHeader>
+              <CardTitle className="text-xl">{student.full_name}</CardTitle>
+              <CardDescription>{student.grade_level}</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded-full text-xs">On Track</span>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-medium mb-2">Subjects</h3>
+                  <div className="flex flex-wrap gap-1">
+                    {student.assigned_tools && student.assigned_tools.length > 0 ? (
+                      student.assigned_tools.map((tool: string, index: number) => (
+                        <Badge key={index} className="bg-blue-900/30 text-blue-100 border border-blue-700">
+                          {tool}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-sm text-gray-400">No subjects assigned</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="flex gap-2">
+              <Button asChild className="flex-1 bg-blue-600 hover:bg-blue-700">
+                <Link href={`/parent/students/${student.id}`}>View Student</Link>
+              </Button>
+            </CardFooter>
+          </Card>
+        ))}
+
+        {/* Add Student Card */}
+        <AddStudentModal />
+      </div>
     </div>
   )
 }

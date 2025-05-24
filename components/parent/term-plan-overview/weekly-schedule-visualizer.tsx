@@ -1,10 +1,12 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, List, Plus } from "lucide-react"
+import { Calendar, List, Plus, ExternalLink } from "lucide-react"
 import { BlockAssignmentModal } from "./block-assignment-modal"
 import { Button } from "@/components/ui/button"
 
@@ -27,6 +29,7 @@ interface WeeklyScheduleVisualizerProps {
       subject: string
       course: string
       type: "subject" | "activity" | "break"
+      platformUrl?: string
     }[]
   }
   subjects: {
@@ -48,6 +51,7 @@ interface WeeklyScheduleVisualizerProps {
       subject: string
       course: string
       type: "subject" | "activity" | "break"
+      platformUrl?: string
     },
   ) => void
   saveChanges: () => void
@@ -164,9 +168,23 @@ export function WeeklyScheduleVisualizer({
       subject: string
       course: string
       type: "subject" | "activity" | "break"
+      platformUrl?: string
     },
   ) => {
     onBlockAssignmentChange(studentId, day, timeSlot, assignment)
+  }
+
+  // Handle URL click - Updated to properly handle the URL
+  const handleUrlClick = (e: React.MouseEvent, url: string | undefined) => {
+    e.stopPropagation() // Prevent opening the assignment modal
+
+    if (url && url.trim() !== "") {
+      // Ensure the URL has a protocol
+      const urlToOpen = url.startsWith("http://") || url.startsWith("https://") ? url : `https://${url}`
+
+      console.log("Opening URL:", urlToOpen) // Debug log
+      window.open(urlToOpen, "_blank", "noopener,noreferrer")
+    }
   }
 
   // Check if there are any block assignments
@@ -235,10 +253,24 @@ export function WeeklyScheduleVisualizer({
                               )} text-sm transition-colors hover:opacity-90 cursor-pointer`}
                               onClick={() => openAssignmentModal(day, timeSlot)}
                             >
-                              <div className="font-medium">{assignment.subject}</div>
-                              {assignment.course && assignment.course !== "none" && (
-                                <div className="text-xs opacity-80">{assignment.course}</div>
-                              )}
+                              <div className="flex items-start justify-between gap-1">
+                                <div className="flex-1">
+                                  <div className="font-medium">{assignment.subject}</div>
+                                  {assignment.course && assignment.course !== "none" && (
+                                    <div className="text-xs opacity-80">{assignment.course}</div>
+                                  )}
+                                </div>
+                                {assignment.platformUrl && (
+                                  <button
+                                    onClick={(e) => handleUrlClick(e, assignment.platformUrl)}
+                                    className="p-0.5 rounded hover:bg-white/10 transition-colors"
+                                    aria-label="Open in new tab"
+                                    title={`Open ${assignment.platformUrl}`}
+                                  >
+                                    <ExternalLink className="h-3 w-3 opacity-70 hover:opacity-100 cursor-pointer hover:text-blue-400 transition-all flex-shrink-0" />
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           ) : (
                             <div
@@ -284,14 +316,26 @@ export function WeeklyScheduleVisualizer({
                           } flex justify-between items-center cursor-pointer hover:opacity-90`}
                           onClick={() => openAssignmentModal(day, timeSlot)}
                         >
-                          <div>
+                          <div className="flex-1">
                             {assignment ? (
-                              <>
-                                <div className="font-medium">{assignment.subject}</div>
-                                {assignment.course && assignment.course !== "none" && (
-                                  <div className="text-xs opacity-80">{assignment.course}</div>
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <div className="font-medium">{assignment.subject}</div>
+                                  {assignment.course && assignment.course !== "none" && (
+                                    <div className="text-xs opacity-80">{assignment.course}</div>
+                                  )}
+                                </div>
+                                {assignment.platformUrl && (
+                                  <button
+                                    onClick={(e) => handleUrlClick(e, assignment.platformUrl)}
+                                    className="p-0.5 rounded hover:bg-white/10 transition-colors"
+                                    aria-label="Open in new tab"
+                                    title={`Open ${assignment.platformUrl}`}
+                                  >
+                                    <ExternalLink className="h-3 w-3 opacity-70 hover:opacity-100 cursor-pointer hover:text-blue-400 transition-all flex-shrink-0" />
+                                  </button>
                                 )}
-                              </>
+                              </div>
                             ) : (
                               <div className="flex items-center gap-1">
                                 <Plus className="h-3 w-3" /> Assign

@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
+import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "@/hooks/use-toast"
@@ -17,6 +18,8 @@ import {
   CheckCircle,
   RefreshCw,
   AlertCircle,
+  Loader2,
+  ArrowLeft,
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -35,6 +38,7 @@ import { saveTermPlan } from "@/app/actions/save-term-plan"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { createClient } from "@supabase/supabase-js"
 
 // Default empty schedule structure
 const defaultSchedule = {
@@ -66,7 +70,7 @@ const defaultStudentData: Partial<StudentTermPlanData> = {
   blockAssignments: {},
 }
 
-// Mock data for initial state - in a real app, this would come from a database
+// Initial empty term plan structure
 const initialTermPlan: TermPlanData = {
   academicTerm: "",
   termType: "",
@@ -122,41 +126,373 @@ const saveBlockAssignment = (
   return updatedTermPlan
 }
 
-// Update the TermPlanOverviewPage component to handle block assignments
+const fetchFromSupabase = async (id: string, userId: string) => {
+  try {
+    console.log("Fetching term plan from Supabase with ID:", id)
+
+    // Create Supabase client with custom timeout
+    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+      global: {
+        fetch: (url, options = {}) => {
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), 12000) // 12 second timeout for individual requests
+
+          return fetch(url, {
+            ...options,
+            signal: controller.signal,
+          }).finally(() => clearTimeout(timeoutId))
+        },
+      },
+    })
+
+    // Fetch the term plan
+    const { data: termPlanData, error: termPlanError } = await supabase
+      .from("term_plans")
+      .select("*")
+      .eq("id", id)
+      .single()
+
+    if (termPlanError) {
+      console.error("Error fetching term plan from Supabase:", termPlanError)
+      throw new Error(termPlanError.message)
+    }
+
+    if (!termPlanData) {
+      console.error("No term plan found in Supabase")
+      throw new Error("Term plan not found")
+    }
+
+    console.log("Term plan fetched from Supabase:", termPlanData)
+
+    // Process the data
+    let processedPlan: TermPlanData = {
+      ...initialTermPlan,
+      id: termPlanData.id,
+      academicTerm: termPlanData.academic_term || "",
+      termType: termPlanData.term_type || "",
+      termYear: termPlanData.term_year || new Date().getFullYear(),
+      goals: termPlanData.goals || [],
+      students: {},
+    }
+
+    // Process data field if it exists
+    if (termPlanData.data) {
+      try {
+        const parsedData = typeof termPlanData.data === "string" ? JSON.parse(termPlanData.data) : termPlanData.data
+
+        if (parsedData && typeof parsedData === "object") {
+          // Merge with processed plan
+          processedPlan = {
+            ...processedPlan,
+            academicTerm: parsedData.academicTerm || processedPlan.academicTerm,
+            termType: parsedData.termType || processedPlan.termType,
+            termYear: parsedData.termYear || processedPlan.termYear,
+            goals: parsedData.goals || processedPlan.goals,
+            students: parsedData.students && typeof parsedData.students === "object" ? parsedData.students : {},
+          }
+        }
+      } catch (error) {
+        console.error("Error parsing term plan data field:", error)
+        // Continue with the basic processed plan
+      }
+    }
+
+    // Save to localStorage as backup
+    localStorage.setItem(`termPlan_${id}`, JSON.stringify(processedPlan))
+    console.log("Term plan saved to localStorage and returning:", processedPlan)
+
+    return processedPlan
+  } catch (error) {
+    console.error("Error in fetchFromSupabase:", error)
+    throw error
+  }
+}
+
 export default function TermPlanOverviewPage() {
   const [termPlan, setTermPlan] = useState<TermPlanData>(initialTermPlan)
   const [activeStudentId, setActiveStudentId] = useState<string>("")
-  const [activeTab, setActiveTab] = useState<string>("overview")
   const [loading, setLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [userId, setUserId] = useState<string>("")
   const [errorMessage, setErrorMessage] = useState<string>("")
   const { user } = useAuth() // Get user from auth context
-
-  // Add a new state for tracking changes
+  const searchParams = useSearchParams()
+  const termPlanId = searchParams?.get("id")
+  const isEditMode = searchParams?.get("edit") === "true"
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-
   const [academicTermModalOpen, setAcademicTermModalOpen] = useState(false)
   const [goalsModalOpen, setGoalsModalOpen] = useState(false)
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false)
   const [subjectsModalOpen, setSubjectsModalOpen] = useState(false)
   const [activitiesModalOpen, setActivitiesModalOpen] = useState(false)
-
+  const [loadingState, setLoadingState] = useState<"initial" | "loading" | "timeout" | "error" | "success">("initial")
   const router = useRouter()
 
-  // UPDATED: Save to parent dashboard function
+  // Add a ref to track if the component is mounted
+  const isMounted = useRef(true)
+
+  // Add a ref to track if the student selection is being changed by the user
+  const isUserSelectingStudent = useRef(false)
+
+  // Function to load term plan from localStorage
+  const loadFromLocalStorage = (id: string) => {
+    try {
+      console.log("Attempting to load term plan from localStorage with ID:", id)
+      const storedPlan = localStorage.getItem(`termPlan_${id}`)
+
+      if (!storedPlan) {
+        console.log("No term plan found in localStorage")
+        return null
+      }
+
+      console.log("Found term plan in localStorage, parsing...")
+      const parsedPlan = JSON.parse(storedPlan)
+
+      // Validate the parsed plan
+      if (!parsedPlan || typeof parsedPlan !== "object") {
+        console.error("Invalid term plan format in localStorage")
+        return null
+      }
+
+      // Ensure the plan has the expected structure
+      const validatedPlan: TermPlanData = {
+        ...initialTermPlan,
+        ...parsedPlan,
+        id: id,
+        academicTerm: parsedPlan.academicTerm || "",
+        termType: parsedPlan.termType || "",
+        termYear: parsedPlan.termYear || new Date().getFullYear(),
+        goals: Array.isArray(parsedPlan.goals) ? parsedPlan.goals : [],
+        students: parsedPlan.students && typeof parsedPlan.students === "object" ? parsedPlan.students : {},
+      }
+
+      console.log("Successfully loaded and validated term plan from localStorage:", validatedPlan)
+      return validatedPlan
+    } catch (error) {
+      console.error("Error loading term plan from localStorage:", error)
+      return null
+    }
+  }
+
+  // Function to check authentication
+  const checkAuth = async () => {
+    try {
+      // First check if we have a user from the auth context
+      if (user) {
+        setIsAuthenticated(true)
+        setUserId(user.id)
+        console.log("User authenticated from auth context:", user.id)
+        return user.id
+      }
+
+      // Fallback to checking with Supabase directly
+      const currentUser = await getCurrentUser()
+      if (currentUser) {
+        setIsAuthenticated(true)
+        setUserId(currentUser.id)
+        console.log("User authenticated from getCurrentUser:", currentUser.id)
+        return currentUser.id
+      }
+
+      // Try localStorage fallbacks
+      const storedUser = localStorage.getItem("user")
+      if (storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser)
+          if (parsedUser && parsedUser.id) {
+            setUserId(parsedUser.id)
+            setIsAuthenticated(true)
+            console.log("User authenticated from localStorage:", parsedUser.id)
+            return parsedUser.id
+          }
+        } catch (e) {
+          console.error("Error parsing stored user:", e)
+        }
+      }
+
+      // Check for demo user ID
+      const demoUserId = localStorage.getItem("demoUserId")
+      if (demoUserId) {
+        setUserId(demoUserId)
+        console.log("Using demo user ID:", demoUserId)
+        return demoUserId
+      }
+
+      return null
+    } catch (error) {
+      console.error("Error checking authentication:", error)
+      return null
+    }
+  }
+
+  // Set up cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMounted.current = false
+    }
+  }, [])
+
+  // Main effect to load the term plan
+  useEffect(() => {
+    const loadTermPlan = async () => {
+      if (!isMounted.current) return
+
+      try {
+        setLoadingState("loading")
+
+        // Check if we have a term plan ID
+        if (!termPlanId) {
+          setErrorMessage("No term plan ID provided. Please select a term plan from the dashboard.")
+          setLoadingState("error")
+          return
+        }
+
+        // First try to load from localStorage for immediate display
+        const localPlan = loadFromLocalStorage(termPlanId)
+        if (localPlan) {
+          console.log("Successfully loaded term plan from localStorage")
+          setTermPlan(localPlan)
+
+          // Set the first student as active if available and no student is currently selected
+          if (localPlan.students && Object.keys(localPlan.students).length > 0 && !activeStudentId) {
+            const firstStudentId = Object.keys(localPlan.students)[0]
+            console.log("Setting initial active student to:", firstStudentId)
+            setActiveStudentId(firstStudentId)
+          }
+
+          // Show the plan immediately, but continue loading from Supabase
+          setLoading(false)
+        }
+
+        // Check authentication
+        const currentUserId = await checkAuth()
+
+        // Try to fetch from Supabase with a timeout
+        if (currentUserId) {
+          try {
+            // Create a timeout promise with longer duration
+            const timeoutPromise = new Promise(
+              (_, reject) => setTimeout(() => reject(new Error("Supabase fetch timeout")), 15000), // Increased to 15 seconds
+            )
+
+            // Race between the fetch and the timeout
+            const supabasePlan = (await Promise.race([
+              fetchFromSupabase(termPlanId, currentUserId),
+              timeoutPromise,
+            ])) as TermPlanData
+
+            if (isMounted.current && supabasePlan) {
+              console.log("Successfully fetched term plan from Supabase")
+              setTermPlan(supabasePlan)
+
+              // Set the first student as active if available and no student is currently selected
+              if (supabasePlan.students && Object.keys(supabasePlan.students).length > 0 && !activeStudentId) {
+                const firstStudentId = Object.keys(supabasePlan.students)[0]
+                console.log("Setting initial active student to:", firstStudentId)
+                setActiveStudentId(firstStudentId)
+              }
+
+              setLoadingState("success")
+              setLoading(false)
+
+              // If edit mode is enabled, open the academic term modal
+              if (isEditMode) {
+                setAcademicTermModalOpen(true)
+              }
+            }
+          } catch (error) {
+            console.error("Error or timeout fetching from Supabase:", error)
+
+            // If we already loaded from localStorage, just mark as success
+            if (localPlan) {
+              console.log("Using localStorage data after Supabase timeout")
+              setLoadingState("success")
+              setLoading(false)
+
+              // Show a toast notification that we're using cached data
+              toast({
+                title: "Using cached data",
+                description: "Unable to fetch latest data from server. Using locally saved version.",
+                variant: "default",
+              })
+            } else {
+              setLoadingState("timeout")
+
+              // Try one more time to load from localStorage
+              const fallbackPlan = loadFromLocalStorage(termPlanId)
+              if (fallbackPlan) {
+                setTermPlan(fallbackPlan)
+
+                // Set the first student as active if available and no student is currently selected
+                if (fallbackPlan.students && Object.keys(fallbackPlan.students).length > 0 && !activeStudentId) {
+                  const firstStudentId = Object.keys(fallbackPlan.students)[0]
+                  console.log("Setting initial active student to:", firstStudentId)
+                  setActiveStudentId(firstStudentId)
+                }
+
+                setLoading(false)
+                setLoadingState("success")
+
+                toast({
+                  title: "Using cached data",
+                  description: "Unable to connect to server. Using locally saved version.",
+                  variant: "default",
+                })
+              } else {
+                setErrorMessage(
+                  "Unable to connect to server and no local data found. Please check your internet connection.",
+                )
+                setLoadingState("error")
+              }
+            }
+          }
+        } else {
+          // No user ID, but we might have loaded from localStorage
+          if (localPlan) {
+            setLoadingState("success")
+          } else {
+            setErrorMessage("No user ID found and no term plan in localStorage.")
+            setLoadingState("error")
+          }
+        }
+      } catch (error) {
+        console.error("Unexpected error in loadTermPlan:", error)
+        setErrorMessage((error as Error).message || "An unexpected error occurred while loading the term plan.")
+        setLoadingState("error")
+      } finally {
+        if (isMounted.current) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadTermPlan()
+  }, [termPlanId, user, isEditMode])
+
+  // Handle student tab change
+  const handleStudentChange = (studentId: string) => {
+    console.log("Student tab changed to:", studentId)
+    isUserSelectingStudent.current = true
+    setActiveStudentId(studentId)
+
+    // Reset the flag after a short delay to prevent race conditions
+    setTimeout(() => {
+      isUserSelectingStudent.current = false
+    }, 100)
+  }
+
+  // Save to parent dashboard function
   const saveToParentDashboard = async () => {
     try {
       setIsSaving(true)
       setErrorMessage("")
 
-      // Get the term plan data from sessionStorage
-      const termPlanJson = sessionStorage.getItem("termPlan")
-      if (!termPlanJson) {
+      // Check if we have a term plan ID
+      if (!termPlanId) {
         toast({
           title: "Error",
-          description: "No term plan data found. Please create a term plan first.",
+          description: "No term plan ID found. Please create a term plan first.",
           variant: "destructive",
         })
         setIsSaving(false)
@@ -195,8 +531,7 @@ export default function TermPlanOverviewPage() {
         localStorage.setItem("demoUserId", demoUserId)
         localStorage.setItem("userId", demoUserId)
 
-        const termPlanData = JSON.parse(termPlanJson)
-        const result = await saveTermPlan(termPlanData, demoUserId)
+        const result = await saveTermPlan(termPlan, demoUserId)
 
         if (result.error) {
           console.error("Error saving term plan:", result.error)
@@ -218,8 +553,7 @@ export default function TermPlanOverviewPage() {
       } else {
         // Normal flow with authenticated user
         console.log("Using authenticated user ID:", currentUserId)
-        const termPlanData = JSON.parse(termPlanJson)
-        const result = await saveTermPlan(termPlanData, currentUserId)
+        const result = await saveTermPlan(termPlan, currentUserId)
 
         if (result.error) {
           console.error("Error saving term plan:", result.error)
@@ -252,7 +586,7 @@ export default function TermPlanOverviewPage() {
     }
   }
 
-  // Update the handleBlockAssignmentChange function to track unsaved changes
+  // Handle block assignment change
   const handleBlockAssignmentChange = (
     studentId: string,
     day: string,
@@ -268,8 +602,10 @@ export default function TermPlanOverviewPage() {
       setTermPlan(updatedTermPlan)
       setHasUnsavedChanges(true)
 
-      // Save to sessionStorage
-      sessionStorage.setItem("termPlan", JSON.stringify(updatedTermPlan))
+      // Save to localStorage
+      if (termPlanId) {
+        localStorage.setItem(`termPlan_${termPlanId}`, JSON.stringify(updatedTermPlan))
+      }
     } catch (error) {
       console.error("Error updating block assignment:", error)
       toast({
@@ -280,10 +616,10 @@ export default function TermPlanOverviewPage() {
     }
   }
 
-  // Add a function to save changes
+  // Save changes function
   const saveChanges = () => {
     try {
-      // Save to sessionStorage (already done in handleBlockAssignmentChange)
+      // Save to localStorage (already done in handleBlockAssignmentChange)
       // Just mark as saved
       setHasUnsavedChanges(false)
       toast({
@@ -300,95 +636,6 @@ export default function TermPlanOverviewPage() {
       })
     }
   }
-
-  useEffect(() => {
-    // Check if user is authenticated
-    const checkAuth = async () => {
-      try {
-        // First check if we have a user from the auth context
-        if (user) {
-          setIsAuthenticated(true)
-          setUserId(user.id)
-          console.log("User authenticated from auth context:", user.id)
-        } else {
-          // Fallback to checking with Supabase directly
-          const currentUser = await getCurrentUser()
-          if (currentUser) {
-            setIsAuthenticated(true)
-            setUserId(currentUser.id)
-            console.log("User authenticated from getCurrentUser:", currentUser.id)
-          } else {
-            // If no user is found, try to get the user ID from localStorage as a last resort
-            const storedUser = localStorage.getItem("user")
-            if (storedUser) {
-              try {
-                const parsedUser = JSON.parse(storedUser)
-                if (parsedUser && parsedUser.id) {
-                  setUserId(parsedUser.id)
-                  setIsAuthenticated(true)
-                  console.log("User authenticated from localStorage:", parsedUser.id)
-                }
-              } catch (e) {
-                console.error("Error parsing stored user:", e)
-              }
-            } else {
-              // Check for demo user ID
-              const demoUserId = localStorage.getItem("demoUserId")
-              if (demoUserId) {
-                setUserId(demoUserId)
-                console.log("Using demo user ID:", demoUserId)
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Error checking authentication:", error)
-        // Even if authentication fails, we'll still show the data from sessionStorage
-        setIsAuthenticated(false)
-      }
-    }
-
-    checkAuth()
-
-    // Get data from sessionStorage regardless of authentication status
-    const storedPlan = sessionStorage.getItem("termPlan")
-    if (storedPlan) {
-      try {
-        const parsedPlan = JSON.parse(storedPlan)
-
-        // Ensure the parsed plan has the expected structure
-        const validatedPlan = {
-          ...initialTermPlan,
-          ...parsedPlan,
-          students: {},
-        }
-
-        // Validate each student's data
-        if (parsedPlan.students) {
-          Object.entries(parsedPlan.students).forEach(([id, studentData]) => {
-            validatedPlan.students[id] = {
-              ...defaultStudentData,
-              ...(studentData as StudentTermPlanData),
-              studentId: id,
-            }
-          })
-        }
-
-        setTermPlan(validatedPlan)
-
-        // Set the first student as active
-        if (validatedPlan.students && Object.keys(validatedPlan.students).length > 0) {
-          setActiveStudentId(Object.keys(validatedPlan.students)[0])
-        }
-      } catch (error) {
-        console.error("Error parsing stored term plan:", error)
-        // If there's an error parsing, use the initial state
-        setTermPlan(initialTermPlan)
-      }
-    }
-
-    setLoading(false)
-  }, [user])
 
   // Function to get the term name with proper formatting
   const getFormattedTermName = () => {
@@ -450,8 +697,10 @@ export default function TermPlanOverviewPage() {
 
       setTermPlan(updatedTermPlan)
 
-      // Save to sessionStorage
-      sessionStorage.setItem("termPlan", JSON.stringify(updatedTermPlan))
+      // Save to localStorage
+      if (termPlanId) {
+        localStorage.setItem(`termPlan_${termPlanId}`, JSON.stringify(updatedTermPlan))
+      }
 
       toast({
         title: "Term updated",
@@ -478,8 +727,10 @@ export default function TermPlanOverviewPage() {
 
       setTermPlan(updatedTermPlan)
 
-      // Save to sessionStorage
-      sessionStorage.setItem("termPlan", JSON.stringify(updatedTermPlan))
+      // Save to localStorage
+      if (termPlanId) {
+        localStorage.setItem(`termPlan_${termPlanId}`, JSON.stringify(updatedTermPlan))
+      }
 
       toast({
         title: "Goals updated",
@@ -516,8 +767,10 @@ export default function TermPlanOverviewPage() {
 
       setTermPlan(updatedTermPlan)
 
-      // Save to sessionStorage
-      sessionStorage.setItem("termPlan", JSON.stringify(updatedTermPlan))
+      // Save to localStorage
+      if (termPlanId) {
+        localStorage.setItem(`termPlan_${termPlanId}`, JSON.stringify(updatedTermPlan))
+      }
 
       toast({
         title: "Schedule updated",
@@ -554,8 +807,10 @@ export default function TermPlanOverviewPage() {
 
       setTermPlan(updatedTermPlan)
 
-      // Save to sessionStorage
-      sessionStorage.setItem("termPlan", JSON.stringify(updatedTermPlan))
+      // Save to localStorage
+      if (termPlanId) {
+        localStorage.setItem(`termPlan_${termPlanId}`, JSON.stringify(updatedTermPlan))
+      }
 
       toast({
         title: "Subjects updated",
@@ -593,8 +848,10 @@ export default function TermPlanOverviewPage() {
 
       setTermPlan(updatedTermPlan)
 
-      // Save to sessionStorage
-      sessionStorage.setItem("termPlan", JSON.stringify(updatedTermPlan))
+      // Save to localStorage
+      if (termPlanId) {
+        localStorage.setItem(`termPlan_${termPlanId}`, JSON.stringify(updatedTermPlan))
+      }
 
       toast({
         title: "Activities updated",
@@ -636,8 +893,119 @@ export default function TermPlanOverviewPage() {
   const activeStudent = termPlan.students[activeStudentId]
   const studentName = activeStudent ? activeStudent.firstName : ""
 
+  // Loading state UI
   if (loading) {
-    return <div className="container mx-auto px-4 py-8 text-center text-gray-400">Loading term plan...</div>
+    return (
+      <div className="container mx-auto px-4 py-8 flex flex-col items-center justify-center min-h-[50vh]">
+        <Loader2 className="h-12 w-12 text-blue-500 animate-spin mb-4" />
+        <h2 className="text-xl font-semibold text-gray-300">Loading term plan...</h2>
+        <p className="text-gray-400 mt-2">Please wait while we retrieve your data</p>
+
+        <Button
+          variant="outline"
+          className="mt-8 border-blue-600 text-blue-400 hover:bg-blue-900/20"
+          onClick={() => router.push("/parent")}
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" /> Return to Dashboard
+        </Button>
+      </div>
+    )
+  }
+
+  // Timeout state UI
+  if (loadingState === "timeout" && !termPlan.id) {
+    return (
+      <div className="container mx-auto px-4 py-8 flex flex-col items-center justify-center min-h-[50vh]">
+        <AlertCircle className="h-12 w-12 text-yellow-500 mb-4" />
+        <h2 className="text-xl font-semibold text-gray-300">Loading is taking longer than expected</h2>
+        <p className="text-gray-400 mt-2 mb-6">We're having trouble connecting to the server</p>
+
+        <div className="flex flex-col sm:flex-row gap-4 mt-4">
+          <Button
+            className="bg-blue-600 hover:bg-blue-500 text-white"
+            onClick={() => {
+              // Try to load from localStorage one more time
+              const localPlan = loadFromLocalStorage(termPlanId!)
+              if (localPlan) {
+                setTermPlan(localPlan)
+
+                // Set the first student as active
+                if (localPlan.students && Object.keys(localPlan.students).length > 0) {
+                  setActiveStudentId(Object.keys(localPlan.students)[0])
+                }
+
+                setLoadingState("success")
+              } else {
+                toast({
+                  title: "Error",
+                  description: "Could not find term plan in local storage.",
+                  variant: "destructive",
+                })
+              }
+            }}
+          >
+            Try Again
+          </Button>
+
+          <Button
+            variant="outline"
+            className="border-blue-600 text-blue-400 hover:bg-blue-900/20"
+            onClick={() => router.push("/parent")}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" /> Return to Dashboard
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state UI
+  if (errorMessage) {
+    return (
+      <div className="container mx-auto px-4 py-8 text-center">
+        <h1 className="text-4xl font-bold mb-4 text-white">Problem Loading Term Plan</h1>
+        <p className="text-gray-300 mb-6">{errorMessage}</p>
+
+        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <Button
+            className="bg-blue-600 hover:bg-blue-500 text-white"
+            onClick={() => {
+              // Try to load from localStorage one more time
+              const localPlan = loadFromLocalStorage(termPlanId!)
+              if (localPlan) {
+                setTermPlan(localPlan)
+                setErrorMessage("")
+
+                // Set the first student as active
+                if (localPlan.students && Object.keys(localPlan.students).length > 0) {
+                  setActiveStudentId(Object.keys(localPlan.students)[0])
+                }
+              } else {
+                toast({
+                  title: "Error",
+                  description: "Could not find term plan in local storage.",
+                  variant: "destructive",
+                })
+              }
+            }}
+          >
+            Try Again
+          </Button>
+
+          <Button
+            variant="outline"
+            className="border-blue-600 text-blue-400 hover:bg-blue-900/20"
+            onClick={() => router.push("/parent")}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" /> Return to Dashboard
+          </Button>
+
+          <Button asChild className="bg-green-600 hover:bg-green-500 text-white">
+            <Link href="/parent/term-plan-builder">Create New Term Plan</Link>
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   const students = getStudents()
@@ -645,11 +1013,21 @@ export default function TermPlanOverviewPage() {
   if (students.length === 0) {
     return (
       <div className="container mx-auto px-4 py-8 text-center">
-        <h1 className="text-4xl font-bold mb-4 text-white">No Term Plan Found</h1>
-        <p className="text-gray-300 mb-6">You haven't created a term plan yet.</p>
-        <Link href="/parent/term-plan-builder">
-          <Button className="bg-blue-600 hover:bg-blue-500 text-white">Create Term Plan</Button>
-        </Link>
+        <h1 className="text-4xl font-bold mb-4 text-white">No Students Found</h1>
+        <p className="text-gray-300 mb-6">This term plan doesn't have any students yet.</p>
+        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <Link href="/parent/term-plan-builder">
+            <Button className="bg-blue-600 hover:bg-blue-500 text-white">Edit Term Plan</Button>
+          </Link>
+
+          <Button
+            variant="outline"
+            className="border-blue-600 text-blue-400 hover:bg-blue-900/20"
+            onClick={() => router.push("/parent")}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" /> Return to Dashboard
+          </Button>
+        </div>
       </div>
     )
   }
@@ -695,25 +1073,24 @@ export default function TermPlanOverviewPage() {
             <h3 className="text-lg font-medium text-white">Select Student</h3>
           </div>
 
-          <Tabs value={activeStudentId} onValueChange={setActiveStudentId} className="w-full">
-            <TabsList className="bg-gray-700 p-1 h-auto flex flex-wrap gap-2">
-              {students.map((student) => (
-                <TabsTrigger
-                  key={student.id}
-                  value={student.id}
-                  className={`
-                    rounded-full px-4 py-2 text-sm font-medium transition-all
-                    data-[state=active]:bg-blue-600 data-[state=active]:text-white
-                    data-[state=active]:shadow-lg data-[state=active]:shadow-blue-900/20
-                    data-[state=inactive]:bg-gray-800 data-[state=inactive]:text-gray-300
-                    data-[state=inactive]:hover:bg-gray-700
-                  `}
-                >
-                  {student.firstName}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
+          <div className="bg-gray-700 p-1 rounded-md flex flex-wrap gap-2">
+            {students.map((student) => (
+              <button
+                key={student.id}
+                onClick={() => handleStudentChange(student.id)}
+                className={`
+                  rounded-full px-4 py-2 text-sm font-medium transition-all
+                  ${
+                    activeStudentId === student.id
+                      ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20"
+                      : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+                  }
+                `}
+              >
+                {student.firstName}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -881,16 +1258,20 @@ export default function TermPlanOverviewPage() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    {activeStudent.subjects.core.map((subject) => (
-                      <Badge key={subject} className="bg-red-900/30 text-red-100 border border-red-700 py-1 px-3">
-                        {subject}
-                      </Badge>
-                    ))}
-                    {activeStudent.subjects.extended.map((subject) => (
-                      <Badge key={subject} className="bg-red-900/50 text-red-100 border border-red-700 py-1 px-3">
-                        {subject}
-                      </Badge>
-                    ))}
+                    {activeStudent.subjects &&
+                      activeStudent.subjects.core &&
+                      activeStudent.subjects.core.map((subject) => (
+                        <Badge key={subject} className="bg-red-900/30 text-red-100 border border-red-700 py-1 px-3">
+                          {subject}
+                        </Badge>
+                      ))}
+                    {activeStudent.subjects &&
+                      activeStudent.subjects.extended &&
+                      activeStudent.subjects.extended.map((subject) => (
+                        <Badge key={subject} className="bg-red-900/50 text-red-100 border border-red-700 py-1 px-3">
+                          {subject}
+                        </Badge>
+                      ))}
                   </div>
 
                   <div className="mt-4 flex justify-center">
@@ -928,15 +1309,16 @@ export default function TermPlanOverviewPage() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    {activeStudent.activities.slice(0, 5).map((activity, index) => (
-                      <Badge
-                        key={index}
-                        className="bg-orange-900/30 text-orange-100 border border-orange-700 py-1 px-3"
-                      >
-                        {activity}
-                      </Badge>
-                    ))}
-                    {activeStudent.activities.length > 5 && (
+                    {activeStudent.activities &&
+                      activeStudent.activities.slice(0, 5).map((activity, index) => (
+                        <Badge
+                          key={index}
+                          className="bg-orange-900/30 text-orange-100 border border-orange-700 py-1 px-3"
+                        >
+                          {activity}
+                        </Badge>
+                      ))}
+                    {activeStudent.activities && activeStudent.activities.length > 5 && (
                       <Badge className="bg-orange-900/30 text-orange-100 border border-orange-700 py-1 px-3">
                         +{activeStudent.activities.length - 5} more
                       </Badge>
@@ -1028,47 +1410,55 @@ export default function TermPlanOverviewPage() {
                 <div>
                   <h3 className="text-lg font-medium text-white mb-2">Core Subjects</h3>
                   <div className="space-y-2">
-                    {activeStudent.subjects.core.map((subject) => (
-                      <div key={subject} className="space-y-1">
-                        <div className="font-medium text-red-200">{subject}</div>
-                        <div className="flex flex-wrap gap-1">
-                          {(activeStudent.subjects.courses[subject] || []).map((course) => (
-                            <Badge
-                              key={`${subject}-${course}`}
-                              className="bg-red-900/30 text-red-100 border border-red-700"
-                            >
-                              {course}
-                            </Badge>
-                          ))}
+                    {activeStudent.subjects &&
+                      activeStudent.subjects.core &&
+                      activeStudent.subjects.core.map((subject) => (
+                        <div key={subject} className="space-y-1">
+                          <div className="font-medium text-red-200">{subject}</div>
+                          <div className="flex flex-wrap gap-1">
+                            {activeStudent.subjects &&
+                              activeStudent.subjects.courses &&
+                              (activeStudent.subjects.courses[subject] || []).map((course) => (
+                                <Badge
+                                  key={`${subject}-${course}`}
+                                  className="bg-red-900/30 text-red-100 border border-red-700"
+                                >
+                                  {course}
+                                </Badge>
+                              ))}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 </div>
 
                 {/* Extended Subjects */}
-                {activeStudent.subjects.extended.length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-medium text-white mb-2">Extended Subjects</h3>
-                    <div className="space-y-2">
-                      {activeStudent.subjects.extended.map((subject) => (
-                        <div key={subject} className="space-y-1">
-                          <div className="font-medium text-red-200">{subject}</div>
-                          <div className="flex flex-wrap gap-1">
-                            {(activeStudent.subjects.courses[subject] || []).map((course) => (
-                              <Badge
-                                key={`${subject}-${course}`}
-                                className="bg-red-900/50 text-red-100 border border-red-700"
-                              >
-                                {course}
-                              </Badge>
-                            ))}
+                {activeStudent.subjects &&
+                  activeStudent.subjects.extended &&
+                  activeStudent.subjects.extended.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-medium text-white mb-2">Extended Subjects</h3>
+                      <div className="space-y-2">
+                        {activeStudent.subjects.extended.map((subject) => (
+                          <div key={subject} className="space-y-1">
+                            <div className="font-medium text-red-200">{subject}</div>
+                            <div className="flex flex-wrap gap-1">
+                              {activeStudent.subjects &&
+                                activeStudent.subjects.courses &&
+                                (activeStudent.subjects.courses[subject] || []).map((course) => (
+                                  <Badge
+                                    key={`${subject}-${course}`}
+                                    className="bg-red-900/50 text-red-100 border border-red-700"
+                                  >
+                                    {course}
+                                  </Badge>
+                                ))}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 <div className="pt-2">
                   <Button
@@ -1106,20 +1496,22 @@ export default function TermPlanOverviewPage() {
                   <div>
                     <h3 className="text-lg font-medium text-white mb-2">Standard Activities</h3>
                     <div className="flex flex-wrap gap-2">
-                      {activeStudent.activities
-                        .filter((activity) => !activeStudent.customActivities.includes(activity))
-                        .map((activity, index) => (
-                          <Badge
-                            key={index}
-                            className="bg-orange-900/30 text-orange-100 border border-orange-700 py-1 px-3"
-                          >
-                            {activity}
-                          </Badge>
-                        ))}
+                      {activeStudent.activities &&
+                        activeStudent.customActivities &&
+                        activeStudent.activities
+                          .filter((activity) => !activeStudent.customActivities.includes(activity))
+                          .map((activity, index) => (
+                            <Badge
+                              key={index}
+                              className="bg-orange-900/30 text-orange-100 border border-orange-700 py-1 px-3"
+                            >
+                              {activity}
+                            </Badge>
+                          ))}
                     </div>
                   </div>
 
-                  {activeStudent.customActivities.length > 0 && (
+                  {activeStudent.customActivities && activeStudent.customActivities.length > 0 && (
                     <div>
                       <h3 className="text-lg font-medium text-white mb-2">Custom Activities</h3>
                       <div className="flex flex-wrap gap-2">

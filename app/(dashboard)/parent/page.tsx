@@ -1,5 +1,6 @@
 "use client"
 
+import { AddStudentModal } from "@/components/parent/add-student-modal"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -190,6 +191,13 @@ export default function ParentDashboardPage() {
     })
   }
 
+  // Function to handle edit button click
+  const handleEditClick = (termPlan: any) => {
+    // Store the term plan in session storage and navigate to edit page
+    sessionStorage.setItem("termPlan", JSON.stringify(termPlan.data || termPlan))
+    router.push(`/parent/term-plan-builder?termPlanId=${termPlan.id}`)
+  }
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8 space-y-8">
@@ -291,18 +299,14 @@ export default function ParentDashboardPage() {
                     </div>
                   </div>
                 </CardContent>
-                <div className="flex gap-2">
+                <div className="flex gap-2 p-4">
                   <Button asChild className="flex-1 bg-blue-600 hover:bg-blue-700">
                     <Link href={`/parent/term-plan-overview?id=${termPlan.id}`}>View Details</Link>
                   </Button>
                   <Button
                     variant="outline"
                     className="flex-1 border-blue-600 text-blue-400 hover:bg-blue-900/20"
-                    onClick={() => {
-                      // Store the term plan in session storage and navigate to edit page
-                      sessionStorage.setItem("termPlan", JSON.stringify(termPlan.data || termPlan))
-                      router.push("/parent/term-plan-builder")
-                    }}
+                    onClick={() => handleEditClick(termPlan)}
                   >
                     <Edit className="mr-2 h-4 w-4" />
                     Edit
@@ -371,17 +375,7 @@ export default function ParentDashboardPage() {
                 </Card>
               ))}
 
-              {/* Add Student Card */}
-              <Card className="bg-gray-800 border-gray-700 border-dashed flex flex-col items-center justify-center p-6">
-                <div className="rounded-full bg-gray-700 p-3 mb-4">
-                  <PlusCircle className="h-8 w-8 text-blue-400" />
-                </div>
-                <h3 className="text-lg font-medium mb-2">Add Student</h3>
-                <p className="text-gray-400 text-center mb-4">Add a new student to your homeschool</p>
-                <Button asChild className="bg-blue-600 hover:bg-blue-700">
-                  <Link href="/profile-setup">Add Student</Link>
-                </Button>
-              </Card>
+              <AddStudentModal />
             </div>
           </TabsContent>
 

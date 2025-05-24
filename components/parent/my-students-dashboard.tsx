@@ -6,6 +6,7 @@ import { BookOpen, Award, Backpack, Palette, Calculator, Microscope } from "luci
 import { getCurrentUser, getStudentsForParent } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
+import { AddStudentModal } from "@/components/parent/add-student-modal"
 
 type Student = {
   id: string
@@ -89,7 +90,7 @@ export function MyStudentsDashboard() {
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-8 text-center">
           <p className="text-xl font-medium text-blue-800 mb-2">🎒 No students yet — add your first one!</p>
           <p className="text-blue-600 mb-4">Start by adding your child's information to create their dashboard.</p>
-          <Button className="bg-blue-600 hover:bg-blue-700">Add Student</Button>
+          <AddStudentModal />
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -120,6 +121,9 @@ export function MyStudentsDashboard() {
               </CardFooter>
             </Card>
           ))}
+
+          {/* Add Student Card */}
+          <AddStudentModal />
         </div>
       )}
     </div>

@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { MoreHorizontal, Edit, Trash2, UserPlus } from "lucide-react"
+import { MoreHorizontal, Edit, Trash2, UserPlus, Loader2 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
   Dialog,
@@ -18,62 +18,228 @@ import {
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { StudentToolsNav } from "./student-tools-nav"
+import { useToast } from "@/hooks/use-toast"
+import { createClient } from "@supabase/supabase-js"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+
+// Add the Supabase client
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
 // Mock data for students
-const initialStudents = [
-  {
-    id: 1,
-    name: "Emma Johnson",
-    age: 10,
-    grade: "5th Grade",
-    subjects: ["Math", "Science", "English", "History"],
-    avatar: "/placeholder.svg?height=100&width=100",
-  },
-  {
-    id: 2,
-    name: "Noah Williams",
-    age: 8,
-    grade: "3rd Grade",
-    subjects: ["Math", "Science", "Reading"],
-    avatar: "/placeholder.svg?height=100&width=100",
-  },
-  {
-    id: 3,
-    name: "Olivia Davis",
-    age: 12,
-    grade: "7th Grade",
-    subjects: ["Algebra", "Biology", "Literature", "Geography", "Spanish"],
-    avatar: "/placeholder.svg?height=100&width=100",
-  },
-]
+// const initialStudents = [
+//   {
+//     id: 1,
+//     name: "Emma Johnson",
+//     age: 10,
+//     grade: "5th Grade",
+//     subjects: ["Math", "Science", "English", "History"],
+//     avatar: "/placeholder.svg?height=100&width=100",
+//   },
+//   {
+//     id: 2,
+//     name: "Noah Williams",
+//     age: 8,
+//     grade: "3rd Grade",
+//     subjects: ["Math", "Science", "Reading"],
+//     avatar: "/placeholder.svg?height=100&width=100",
+//   },
+//   {
+//     id: 3,
+//     name: "Olivia Davis",
+//     age: 12,
+//     grade: "7th Grade",
+//     subjects: ["Algebra", "Biology", "Literature", "Geography", "Spanish"],
+//     avatar: "/placeholder.svg?height=100&width=100",
+//   },
+// ]
 
+// Replace the existing StudentManagement component with this updated version
 export function StudentManagement() {
-  const [students, setStudents] = useState(initialStudents)
+  const [students, setStudents] = useState<any[]>([])
   const [newStudent, setNewStudent] = useState({
     name: "",
     age: "",
     grade: "",
+    firstName: "",
+    lastName: "",
+    username: "",
+    password: "",
   })
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isLoadingStudents, setIsLoadingStudents] = useState(true)
+  const { toast } = useToast()
 
-  const handleAddStudent = () => {
-    if (newStudent.name && newStudent.age && newStudent.grade) {
-      const student = {
-        id: students.length + 1,
-        name: newStudent.name,
+  // Fetch students on component mount
+  useEffect(() => {
+    fetchStudents()
+  }, [])
+
+  // Fetch students from Supabase
+  const fetchStudents = async () => {
+    try {
+      setIsLoadingStudents(true)
+
+      // Get current user
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        toast({
+          title: "Authentication Error",
+          description: "You must be logged in to view students",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Fetch students for the current user
+      const { data, error } = await supabase.from("student").select("*").eq("parent_id", user.id)
+
+      if (error) {
+        throw error
+      }
+
+      // Transform the data to match our component's expected format
+      const formattedStudents = data.map((student) => ({
+        id: student.id,
+        name: `${student.first_name} ${student.last_name}`,
+        age: student.age,
+        grade: student.grade_level,
+        subjects: student.assigned_tools || [],
+        avatar: "/placeholder.svg?height=100&width=100",
+      }))
+
+      setStudents(formattedStudents)
+    } catch (error) {
+      console.error("Error fetching students:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load students. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoadingStudents(false)
+    }
+  }
+
+  const handleAddStudent = async () => {
+    if (!newStudent.firstName || !newStudent.lastName || !newStudent.age || !newStudent.grade) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      setIsLoading(true)
+
+      // Get current user
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        toast({
+          title: "Authentication Error",
+          description: "You must be logged in to add a student",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Create the student in Supabase
+      const { data, error } = await supabase
+        .from("student")
+        .insert({
+          parent_id: user.id,
+          first_name: newStudent.firstName,
+          last_name: newStudent.lastName,
+          full_name: `${newStudent.firstName} ${newStudent.lastName}`,
+          age: Number.parseInt(newStudent.age),
+          grade_level: newStudent.grade,
+          username: newStudent.username || `${newStudent.firstName.toLowerCase()}${newStudent.lastName.toLowerCase()}`,
+          assigned_tools: [],
+          schedule_json: {},
+          expectations: {},
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .select()
+
+      if (error) {
+        throw error
+      }
+
+      // Add the new student to the local state
+      const newStudentData = {
+        id: data[0].id,
+        name: `${newStudent.firstName} ${newStudent.lastName}`,
         age: Number.parseInt(newStudent.age),
         grade: newStudent.grade,
         subjects: [],
         avatar: "/placeholder.svg?height=100&width=100",
       }
-      setStudents([...students, student])
-      setNewStudent({ name: "", age: "", grade: "" })
+
+      setStudents([...students, newStudentData])
+
+      // Reset the form
+      setNewStudent({
+        name: "",
+        age: "",
+        grade: "",
+        firstName: "",
+        lastName: "",
+        username: "",
+        password: "",
+      })
+
+      // Close the dialog
       setIsAddDialogOpen(false)
+
+      toast({
+        title: "Success",
+        description: "Student added successfully",
+      })
+    } catch (error) {
+      console.error("Error adding student:", error)
+      toast({
+        title: "Error",
+        description: "Failed to add student. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const handleDeleteStudent = (id: number) => {
-    setStudents(students.filter((student) => student.id !== id))
+  const handleDeleteStudent = async (id: string) => {
+    try {
+      // Delete the student from Supabase
+      const { error } = await supabase.from("student").delete().eq("id", id)
+
+      if (error) {
+        throw error
+      }
+
+      // Remove the student from local state
+      setStudents(students.filter((student) => student.id !== id))
+
+      toast({
+        title: "Success",
+        description: "Student deleted successfully",
+      })
+    } catch (error) {
+      console.error("Error deleting student:", error)
+      toast({
+        title: "Error",
+        description: "Failed to delete student. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   return (
@@ -94,14 +260,27 @@ export function StudentManagement() {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="name" className="text-right">
-                  Name
+                <Label htmlFor="firstName" className="text-right">
+                  First Name
                 </Label>
                 <Input
-                  id="name"
-                  value={newStudent.name}
-                  onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
+                  id="firstName"
+                  value={newStudent.firstName}
+                  onChange={(e) => setNewStudent({ ...newStudent, firstName: e.target.value })}
                   className="col-span-3"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="lastName" className="text-right">
+                  Last Name
+                </Label>
+                <Input
+                  id="lastName"
+                  value={newStudent.lastName}
+                  onChange={(e) => setNewStudent({ ...newStudent, lastName: e.target.value })}
+                  className="col-span-3"
+                  required
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
@@ -114,17 +293,61 @@ export function StudentManagement() {
                   value={newStudent.age}
                   onChange={(e) => setNewStudent({ ...newStudent, age: e.target.value })}
                   className="col-span-3"
+                  required
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="grade" className="text-right">
                   Grade
                 </Label>
-                <Input
-                  id="grade"
+                <Select
                   value={newStudent.grade}
-                  onChange={(e) => setNewStudent({ ...newStudent, grade: e.target.value })}
+                  onValueChange={(value) => setNewStudent({ ...newStudent, grade: value })}
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select grade level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Pre-K">Pre-K</SelectItem>
+                    <SelectItem value="Kindergarten">Kindergarten</SelectItem>
+                    <SelectItem value="1st Grade">1st Grade</SelectItem>
+                    <SelectItem value="2nd Grade">2nd Grade</SelectItem>
+                    <SelectItem value="3rd Grade">3rd Grade</SelectItem>
+                    <SelectItem value="4th Grade">4th Grade</SelectItem>
+                    <SelectItem value="5th Grade">5th Grade</SelectItem>
+                    <SelectItem value="6th Grade">6th Grade</SelectItem>
+                    <SelectItem value="7th Grade">7th Grade</SelectItem>
+                    <SelectItem value="8th Grade">8th Grade</SelectItem>
+                    <SelectItem value="9th Grade">9th Grade</SelectItem>
+                    <SelectItem value="10th Grade">10th Grade</SelectItem>
+                    <SelectItem value="11th Grade">11th Grade</SelectItem>
+                    <SelectItem value="12th Grade">12th Grade</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="username" className="text-right">
+                  Username
+                </Label>
+                <Input
+                  id="username"
+                  value={newStudent.username}
+                  onChange={(e) => setNewStudent({ ...newStudent, username: e.target.value })}
                   className="col-span-3"
+                  placeholder="Optional - will generate if left blank"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="password" className="text-right">
+                  Password
+                </Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={newStudent.password}
+                  onChange={(e) => setNewStudent({ ...newStudent, password: e.target.value })}
+                  className="col-span-3"
+                  placeholder="Optional - for student login"
                 />
               </div>
             </div>
@@ -132,7 +355,16 @@ export function StudentManagement() {
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleAddStudent}>Add Student</Button>
+              <Button onClick={handleAddStudent} disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Adding...
+                  </>
+                ) : (
+                  "Add Student"
+                )}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -149,11 +381,25 @@ export function StudentManagement() {
           <TabsTrigger value="high">High School</TabsTrigger>
         </TabsList>
         <TabsContent value="all" className="mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {students.map((student) => (
-              <StudentCard key={student.id} student={student} onDelete={handleDeleteStudent} />
-            ))}
-          </div>
+          {isLoadingStudents ? (
+            <div className="flex justify-center items-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+              <span className="ml-2">Loading students...</span>
+            </div>
+          ) : students.length === 0 ? (
+            <div className="text-center py-12 bg-gray-800/50 rounded-lg border border-gray-700">
+              <UserPlus className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+              <h3 className="text-xl font-medium mb-2">No students yet</h3>
+              <p className="text-gray-400 mb-4">Add your first student to get started</p>
+              <Button onClick={() => setIsAddDialogOpen(true)}>Add Student</Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {students.map((student) => (
+                <StudentCard key={student.id} student={student} onDelete={handleDeleteStudent} />
+              ))}
+            </div>
+          )}
         </TabsContent>
         <TabsContent value="elementary" className="mt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -187,16 +433,17 @@ export function StudentManagement() {
   )
 }
 
+// Update the StudentCard component to handle string IDs and improve the UI
 interface StudentCardProps {
   student: {
-    id: number
+    id: string
     name: string
     age: number
     grade: string
     subjects: string[]
     avatar: string
   }
-  onDelete: (id: number) => void
+  onDelete: (id: string) => void
 }
 
 function StudentCard({ student, onDelete }: StudentCardProps) {
@@ -241,11 +488,15 @@ function StudentCard({ student, onDelete }: StudentCardProps) {
         <div className="mt-2">
           <h4 className="text-sm font-medium mb-2">Subjects</h4>
           <div className="flex flex-wrap gap-1">
-            {student.subjects.map((subject, index) => (
-              <span key={index} className="px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded-full text-xs">
-                {subject}
-              </span>
-            ))}
+            {student.subjects && student.subjects.length > 0 ? (
+              student.subjects.map((subject, index) => (
+                <span key={index} className="px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded-full text-xs">
+                  {subject}
+                </span>
+              ))
+            ) : (
+              <span className="text-xs text-gray-400">No subjects assigned yet</span>
+            )}
           </div>
         </div>
       </CardContent>

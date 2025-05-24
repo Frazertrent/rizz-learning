@@ -4,9 +4,10 @@ import { createServerSupabaseClient } from "@/lib/supabase-server"
 export default async function TermPlanBuilderPage({
   searchParams,
 }: {
-  searchParams: { id?: string }
+  searchParams: { id?: string; termPlanId?: string }
 }) {
   let parentId = searchParams.id
+  let termPlanId = searchParams.termPlanId
 
   // If no ID is provided, try to get the current user
   if (!parentId) {
@@ -29,10 +30,15 @@ export default async function TermPlanBuilderPage({
     parentId = parentId.replace(/[^a-fA-F0-9-]/g, "")
   }
 
+  // Clean the termPlanId if provided
+  if (termPlanId) {
+    termPlanId = termPlanId.replace(/[^a-fA-F0-9-]/g, "")
+  }
+
   return (
     <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-8 text-white">Term Plan Builder</h1>
-      <TermPlanBuilder parentId={parentId} />
+      <h1 className="text-3xl font-bold mb-8 text-white">{termPlanId ? "Edit Term Plan" : "Term Plan Builder"}</h1>
+      <TermPlanBuilder parentId={parentId} termPlanId={termPlanId} />
     </div>
   )
 }
