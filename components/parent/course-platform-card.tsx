@@ -35,6 +35,8 @@ const supabase = createClientComponentClient()
 
 // Add learningStyle state at the top level
 let globalLearningStyle = 'hands-on activities'
+let globalParentInvolvement = 'minimal parent involvement'
+let globalEducationalValues = 'STEM excellence'
 
 // Helper function to validate URLs
 function isValidUrl(urlString: string): boolean {
@@ -96,6 +98,101 @@ const fetchLearningStyle = async (parentId: string): Promise<string> => {
   }
 }
 
+const fetchParentInvolvement = async (parentId: string): Promise<string> => {
+  console.log('🔍 fetchParentInvolvement started with parentId:', parentId)
+  
+  if (!parentId) {
+    console.log('❌ No parentId provided, using default')
+    globalParentInvolvement = 'minimal parent involvement'
+    return 'minimal parent involvement'
+  }
+  
+  try {
+    console.log('📡 Querying parent_intake_form for parent_involvement...')
+    
+    const { data, error } = await supabase
+      .from('parent_intake_form')
+      .select('parent_involvement')
+      .eq('parent_id', parentId)
+      .limit(1)
+      .single()
+    
+    console.log('📊 Parent involvement query completed')
+    console.log('📊 Data received:', data)
+    console.log('📊 Error received:', error)
+    
+    if (data && data.parent_involvement) {
+      const involvementText = `${data.parent_involvement} parent involvement`
+      console.log('✅ Found parent involvement:', data.parent_involvement)
+      console.log('✅ Using involvement text:', involvementText)
+      globalParentInvolvement = involvementText
+      return involvementText
+    } else {
+      console.log('⚠️ No parent involvement found, using default')
+      globalParentInvolvement = 'minimal parent involvement'
+      return 'minimal parent involvement'
+    }
+  } catch (error) {
+    console.log('💥 Error in fetchParentInvolvement:', error)
+    globalParentInvolvement = 'minimal parent involvement'
+    return 'minimal parent involvement'
+  }
+}
+
+const fetchEducationalValues = async (parentId: string): Promise<string> => {
+  console.log('🔍 fetchEducationalValues started with parentId:', parentId)
+  
+  if (!parentId) {
+    console.log('❌ No parentId provided, using default')
+    globalEducationalValues = 'STEM excellence'
+    return 'STEM excellence'
+  }
+  
+  try {
+    console.log('📡 Querying parent_intake_form for educational_values...')
+    
+    const { data, error } = await supabase
+      .from('parent_intake_form')
+      .select('educational_values')
+      .eq('parent_id', parentId)
+      .limit(1)
+      .single()
+    
+    console.log('📊 Educational values query completed')
+    console.log('📊 Data received:', data)
+    console.log('📊 Error received:', error)
+    
+    if (data && data.educational_values) {
+      // Convert array of values to readable text
+      let valuesArray = data.educational_values
+      
+      // Handle if it's a string that looks like an array
+      if (typeof valuesArray === 'string') {
+        try {
+          valuesArray = JSON.parse(valuesArray)
+        } catch (e) {
+          console.log('Could not parse educational_values as JSON, using as string')
+          valuesArray = [valuesArray]
+        }
+      }
+      
+      const valuesText = Array.isArray(valuesArray) ? valuesArray.join(' and ') : valuesArray
+      console.log('✅ Found educational values:', data.educational_values)
+      console.log('✅ Using values text:', valuesText)
+      globalEducationalValues = valuesText
+      return valuesText
+    } else {
+      console.log('⚠️ No educational values found, using default')
+      globalEducationalValues = 'STEM excellence'
+      return 'STEM excellence'
+    }
+  } catch (error) {
+    console.log('💥 Error in fetchEducationalValues:', error)
+    globalEducationalValues = 'STEM excellence'
+    return 'STEM excellence'
+  }
+}
+
 // Generate personalized prompt using client-side OpenAI
 const generatePersonalizedPrompt = async (parentId: string, subject: string, course: string): Promise<string> => {
   try {
@@ -122,7 +219,7 @@ const generatePersonalizedPrompt = async (parentId: string, subject: string, cou
     console.log('Client-side fetched assessmentData:', assessmentData)
     
     if (!intakeData && !assessmentData) {
-      return `Find a ${subject} platform for ${course} that fits my 9th grader who learns best through ${globalLearningStyle}. My goal is early graduation with an associate's degree at a proficient level. I prefer structured independence with minimal parent involvement and value STEM excellence. My budget is approximately $50 per subject based on my $200/month education budget across 4 daily blocks.`
+      return `Find a ${subject} platform for ${course} that fits my 9th grader who learns best through ${globalLearningStyle}. My goal is early graduation with an associate's degree at a proficient level. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. My budget is approximately $50 per subject based on my $200/month education budget across 4 daily blocks.`
     }
     
     // Calculate budget per subject
@@ -160,11 +257,11 @@ Create a similar request for ${subject} - ${course}:`
       temperature: 0.7,
     })
     
-    return response.choices[0]?.message?.content || `Find a ${subject} platform for ${course} that fits my 9th grader who learns best through ${globalLearningStyle}. My goal is early graduation with an associate's degree at a proficient level. I prefer structured independence with minimal parent involvement and value STEM excellence. My budget is approximately $50 per subject based on my $200/month education budget across 4 daily blocks.`
+    return response.choices[0]?.message?.content || `Find a ${subject} platform for ${course} that fits my 9th grader who learns best through ${globalLearningStyle}. My goal is early graduation with an associate's degree at a proficient level. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. My budget is approximately $50 per subject based on my $200/month education budget across 4 daily blocks.`
     
   } catch (error) {
     console.error('Error generating personalized prompt:', error)
-    return `Find a ${subject} platform for ${course} that fits my 9th grader who learns best through ${globalLearningStyle}. My goal is early graduation with an associate's degree at a proficient level. I prefer structured independence with minimal parent involvement and value STEM excellence. My budget is approximately $50 per subject based on my $200/month education budget across 4 daily blocks.`
+    return `Find a ${subject} platform for ${course} that fits my 9th grader who learns best through ${globalLearningStyle}. My goal is early graduation with an associate's degree at a proficient level. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. My budget is approximately $50 per subject based on my $200/month education budget across 4 daily blocks.`
   }
 }
 
@@ -200,20 +297,25 @@ export function CoursePlatformCard({
 
   // Fetch learning style when component mounts
   useEffect(() => {
-    console.log('=== LEARNING STYLE DEBUG START ===')
+    console.log('=== PARENT DATA DEBUG START ===')
     console.log('Component mounted with parentId:', parentId)
     console.log('Subject:', subject, 'Course:', course)
     
     if (parentId) {
-      console.log('Calling fetchLearningStyle with parentId:', parentId)
+      console.log('Fetching learning style, parent involvement, and educational values...')
       fetchLearningStyle(parentId).then(result => {
         console.log('fetchLearningStyle completed with result:', result)
-        console.log('globalLearningStyle is now:', globalLearningStyle)
+      })
+      fetchParentInvolvement(parentId).then(result => {
+        console.log('fetchParentInvolvement completed with result:', result)
+      })
+      fetchEducationalValues(parentId).then(result => {
+        console.log('fetchEducationalValues completed with result:', result)
       })
     } else {
-      console.log('No parentId provided, skipping fetchLearningStyle')
+      console.log('No parentId provided, skipping data fetch')
     }
-    console.log('=== LEARNING STYLE DEBUG END ===')
+    console.log('=== PARENT DATA DEBUG END ===')
   }, [parentId])
 
   // Generate initial prompt when search opens
@@ -227,7 +329,7 @@ export function CoursePlatformCard({
     setIsGeneratingPrompt(true)
     
     if (!parentId) {
-      setSearchQuery(`Find a ${subject} platform for ${course} that fits my 9th grader who learns best through ${globalLearningStyle}. My goal is early graduation with an associate's degree at a proficient level. I prefer structured independence with minimal parent involvement and value STEM excellence. My budget is approximately $50 per subject based on my $200/month education budget across 4 daily blocks.`)
+      setSearchQuery(`Find a ${subject} platform for ${course} that fits my 9th grader who learns best through ${globalLearningStyle}. My goal is early graduation with an associate's degree at a proficient level. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. My budget is approximately $50 per subject based on my $200/month education budget across 4 daily blocks.`)
       setPromptGenerated(true)
       setIsGeneratingPrompt(false)
       return
