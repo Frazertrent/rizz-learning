@@ -1,9 +1,6 @@
-import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { useState, useEffect, useCallback } from 'react';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useRouter } from 'next/navigation';
 
 export interface Student {
   id: string;
@@ -23,11 +20,32 @@ export const useStudents = (studentIds?: string[]): UseStudentsResult => {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  
+  // Create Supabase client once
+  const supabase = createClientComponentClient();
 
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
+
+      // Check auth status first
+      const { data: { session }, error: authError } = await supabase.auth.getSession();
+      
+      if (authError) {
+        console.error('Auth error:', authError);
+        setError('Authentication error. Please log in again.');
+        router.push('/login');
+        return;
+      }
+
+      if (!session) {
+        console.log('No active session');
+        setError('Please log in to view students');
+        router.push('/login');
+        return;
+      }
 
       // If no student IDs provided, return empty array
       if (!studentIds || studentIds.length === 0) {
@@ -44,6 +62,12 @@ export const useStudents = (studentIds?: string[]): UseStudentsResult => {
 
       if (supabaseError) {
         console.error('Error fetching students:', supabaseError);
+        // Check for auth-related errors
+        if (supabaseError.code === 'PGRST301' || supabaseError.code === '401') {
+          setError('Session expired. Please log in again.');
+          router.push('/login');
+          return;
+        }
         setError(supabaseError.message || 'Failed to fetch students');
         return;
       }
@@ -63,15 +87,30 @@ export const useStudents = (studentIds?: string[]): UseStudentsResult => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [supabase, studentIds, router]);
 
   useEffect(() => {
     fetchStudents();
-  }, [JSON.stringify(studentIds)]);
 
-  const refetch = () => {
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setStudents([]);
+        setError('Please log in to view students');
+        router.push('/login');
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        fetchStudents();
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [fetchStudents, supabase.auth, router]);
+
+  const refetch = useCallback(() => {
     fetchStudents();
-  };
+  }, [fetchStudents]);
 
   return {
     students,

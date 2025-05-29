@@ -147,12 +147,10 @@ const saveBlockAssignment = (
 
 const fetchFromSupabase = async (id: string, userId: string) => {
   try {
-    console.log("Starting Supabase fetch with ID:", id, "and user ID:", userId)
-    console.log("Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL)
-    console.log("Using anon key:", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.substring(0, 8) + "...")
+    console.log("Starting Supabase fetch for term plan:", { id, userId })
 
-    // Create Supabase client with custom timeout and debug logging
-    const supabase = createClient(
+    // Configure Supabase client with longer timeout
+    const supabaseWithTimeout = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
@@ -161,60 +159,42 @@ const fetchFromSupabase = async (id: string, userId: string) => {
           autoRefreshToken: true,
           detectSessionInUrl: true,
         },
-      global: {
-        fetch: (url, options = {}) => {
-          const controller = new AbortController()
-            const timeoutId = setTimeout(() => {
-              controller.abort()
-              console.error("Supabase request timed out after 12 seconds")
-            }, 12000)
-
-            console.log("Making Supabase request to:", url)
-          return fetch(url, {
-            ...options,
-            signal: controller.signal,
+        global: {
+          fetch: (...args) => {
+            const [url, config] = args
+            return fetch(url as string, {
+              ...config as RequestInit,
+              signal: AbortSignal.timeout(25000) // 25 second timeout at fetch level
             })
-              .then(response => {
-                console.log("Supabase response status:", response.status)
-                return response
-              })
-              .catch(error => {
-                console.error("Supabase fetch error:", error)
-                throw error
-              })
-              .finally(() => {
-                clearTimeout(timeoutId)
-              })
-        },
-      },
+          }
+        }
       }
     )
 
     // Log current auth state
-    const { data: { session }, error: authError } = await supabase.auth.getSession()
+    const { data: { session }, error: authError } = await supabaseWithTimeout.auth.getSession()
     if (authError) {
       console.error("Error getting auth session:", authError)
-    } else {
-      console.log("Current auth state:", session ? "Authenticated" : "Not authenticated")
+      throw new Error(`Authentication error: ${authError.message}`)
     }
+    console.log("Current auth state:", session ? "Authenticated" : "Not authenticated")
 
     // Fetch the term plan with detailed error logging
     console.log("Fetching term plan with query:", { id })
-    const { data: termPlanData, error: termPlanError } = await supabase
+    const { data: termPlanData, error: termPlanError } = await supabaseWithTimeout
       .from("term_plans")
       .select("*")
       .eq("id", id)
       .single()
 
     if (termPlanError) {
-      console.error("Error fetching term plan from Supabase:", termPlanError)
-      console.error("Error details:", {
+      console.error("Error fetching term plan from Supabase:", {
         code: termPlanError.code,
         message: termPlanError.message,
         details: termPlanError.details,
         hint: termPlanError.hint
       })
-      throw new Error(termPlanError.message)
+      throw new Error(`Supabase fetch error: ${termPlanError.message}`)
     }
 
     if (!termPlanData) {
@@ -491,16 +471,32 @@ export default function TermPlanOverviewPage() {
         if (currentUserId) {
           try {
             console.log("Attempting to fetch from Supabase...")
-            // Create a timeout promise
-            const timeoutPromise = new Promise(
-              (_, reject) => setTimeout(() => reject(new Error("Supabase fetch timeout")), 15000)
-            )
+            
+            // Add retry logic with exponential backoff
+            const fetchWithRetry = async (retries = 3, delay = 2000) => {
+              for (let i = 0; i < retries; i++) {
+                try {
+                  // Create a timeout promise with longer duration (30 seconds)
+                  const timeoutPromise = new Promise(
+                    (_, reject) => setTimeout(() => reject(new Error("Supabase fetch timeout")), 30000)
+                  );
 
-            // Race between the fetch and the timeout
-            const supabasePlan = (await Promise.race([
-              fetchFromSupabase(termPlanId, currentUserId),
-              timeoutPromise,
-            ])) as TermPlanData
+                  // Race between the fetch and the timeout
+                  const result = await Promise.race([
+                    fetchFromSupabase(termPlanId, currentUserId),
+                    timeoutPromise,
+                  ]) as TermPlanData;
+
+                  return result;
+                } catch (error) {
+                  console.error(`Attempt ${i + 1} failed:`, error);
+                  if (i === retries - 1) throw error;
+                  await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+                }
+              }
+            };
+
+            const supabasePlan = await fetchWithRetry();
 
             if (isMounted.current && supabasePlan) {
               console.log("Successfully fetched term plan from Supabase")
@@ -1279,10 +1275,7 @@ export default function TermPlanOverviewPage() {
               Weekly Schedule
             </TabsTrigger>
             <TabsTrigger value="subjects" className="data-[state=active]:bg-gray-700">
-              Subjects & Courses
-            </TabsTrigger>
-            <TabsTrigger value="activities" className="data-[state=active]:bg-gray-700">
-              Activities
+              Subjects & Activities
             </TabsTrigger>
           </TabsList>
 
@@ -1428,7 +1421,7 @@ export default function TermPlanOverviewPage() {
                 </CardHeader>
                 <CardContent className="pt-4">
                   <div className="p-4 border border-red-700 rounded-lg bg-red-900/20 text-red-100 mb-4">
-                    <p>Click on "Subjects & Courses" tab to see the full subject details.</p>
+                    <p>Click on "Subjects & Activities" tab to see the full subject details.</p>
                   </div>
 
                   <div className="space-y-8">
@@ -1475,6 +1468,7 @@ export default function TermPlanOverviewPage() {
                                         onHelpToggle={(needsHelp: boolean) => {
                                           // This will be handled by the existing help toggle functionality
                                         }}
+                                        parentId={userId}
                                       />
                                     );
                                   })}
@@ -1544,6 +1538,7 @@ export default function TermPlanOverviewPage() {
                                         onHelpToggle={(needsHelp: boolean) => {
                                           // This will be handled by the existing help toggle functionality
                                         }}
+                                        parentId={userId}
                                       />
                                     );
                                   })}
@@ -1588,70 +1583,6 @@ export default function TermPlanOverviewPage() {
                         </button>
                       </div>
                     )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Activities Preview */}
-              <Card className="bg-gray-800 border-orange-700 shadow-lg hover:shadow-orange-900/20 transition-all">
-                <CardHeader className="bg-gradient-to-r from-orange-900/50 to-orange-700/30 rounded-t-lg pb-2">
-                  <div className="flex justify-between items-center">
-                    <CardTitle className="text-xl font-semibold flex items-center gap-2 text-white">
-                      <CheckCircle className="h-5 w-5 text-orange-400" />
-                      {activeStudent.firstName}'s Anchor Activities
-                    </CardTitle>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-orange-400 hover:text-orange-300 hover:bg-orange-900/30"
-                      onClick={() => openEditModal("activities")}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="text-lg font-medium text-white mb-2">Standard Activities</h3>
-                      <div className="flex flex-wrap gap-2">
-                        {activeStudent.activities &&
-                          activeStudent.activities.filter((activity) => !activeStudent.customActivities.includes(activity))
-                            .map((activity, index) => (
-                              <Badge
-                                key={index}
-                                className="bg-orange-900/30 text-orange-100 border border-orange-700 py-1 px-3"
-                              >
-                                {activity}
-                              </Badge>
-                            ))}
-                      </div>
-                    </div>
-
-                    {activeStudent.customActivities && activeStudent.customActivities.length > 0 && (
-                      <div>
-                        <h3 className="text-lg font-medium text-white mb-2">Custom Activities</h3>
-                        <div className="flex flex-wrap gap-2">
-                          {activeStudent.customActivities.map((activity, index) => (
-                            <Badge
-                              key={index}
-                              className="bg-orange-900/50 text-orange-100 border border-orange-700 py-1 px-3"
-                            >
-                              {activity}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="pt-2">
-                      <Button
-                        className="bg-orange-700 hover:bg-orange-600 text-white w-full"
-                        onClick={() => openEditModal("activities")}
-                      >
-                        Update Activities
-                      </Button>
-                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -1707,13 +1638,13 @@ export default function TermPlanOverviewPage() {
           </TabsContent>
 
           <TabsContent value="subjects" className="space-y-6">
-            {/* Subjects + Courses Card */}
+            {/* Subjects + Activities Card */}
             <Card className="bg-gray-800 border-red-700 shadow-lg hover:shadow-red-900/20 transition-all">
               <CardHeader className="bg-gradient-to-r from-red-900/50 to-red-700/30 rounded-t-lg pb-2">
                 <div className="flex justify-between items-center">
                   <CardTitle className="text-xl font-semibold flex items-center gap-2 text-white">
                     <BookOpen className="h-5 w-5 text-red-400" />
-                    {activeStudent.firstName}'s Subjects + Courses
+                    {activeStudent.firstName}'s Subjects + Activities
                   </CardTitle>
                   <Button
                     variant="ghost"
@@ -1745,9 +1676,9 @@ export default function TermPlanOverviewPage() {
                 {/* Main content */}
                 {!platformsLoading && !platformsError && (
                   <div className="space-y-8">
-                    {/* Subjects and Courses */}
+                    {/* Subjects and Activities */}
                     <div>
-                      <h3 className="text-lg font-medium mb-4">Subjects & Courses</h3>
+                      <h3 className="text-lg font-medium mb-4">Subjects & Activities</h3>
                       <div className="space-y-6">
                         {Object.entries(getSubjectsAndCourses(activeStudentId)).map(([subject, courses]) => (
                           <div key={subject} className="space-y-4">
@@ -1772,6 +1703,7 @@ export default function TermPlanOverviewPage() {
                                     onHelpToggle={(needsHelp: boolean) => {
                                       // This will be handled by the existing help toggle functionality
                                     }}
+                                    parentId={userId}
                                   />
                                 );
                               })}
@@ -1782,72 +1714,6 @@ export default function TermPlanOverviewPage() {
                     </div>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="activities" className="space-y-6">
-            {/* Anchor Activities Card */}
-            <Card className="bg-gray-800 border-orange-700 shadow-lg hover:shadow-orange-900/20 transition-all">
-              <CardHeader className="bg-gradient-to-r from-orange-900/50 to-orange-700/30 rounded-t-lg pb-2">
-                <div className="flex justify-between items-center">
-                  <CardTitle className="text-xl font-semibold flex items-center gap-2 text-white">
-                    <CheckCircle className="h-5 w-5 text-orange-400" />
-                    {activeStudent.firstName}'s Anchor Activities
-                  </CardTitle>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-orange-400 hover:text-orange-300 hover:bg-orange-900/30"
-                    onClick={() => openEditModal("activities")}
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-lg font-medium text-white mb-2">Standard Activities</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {activeStudent.activities &&
-                        activeStudent.activities.filter((activity) => !activeStudent.customActivities.includes(activity))
-                          .map((activity, index) => (
-                            <Badge
-                              key={index}
-                              className="bg-orange-900/30 text-orange-100 border border-orange-700 py-1 px-3"
-                            >
-                              {activity}
-                            </Badge>
-                          ))}
-                    </div>
-                  </div>
-
-                  {activeStudent.customActivities && activeStudent.customActivities.length > 0 && (
-                    <div>
-                      <h3 className="text-lg font-medium text-white mb-2">Custom Activities</h3>
-                      <div className="flex flex-wrap gap-2">
-                        {activeStudent.customActivities.map((activity, index) => (
-                          <Badge
-                            key={index}
-                            className="bg-orange-900/50 text-orange-100 border border-orange-700 py-1 px-3"
-                          >
-                            {activity}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="pt-2">
-                    <Button
-                      className="bg-orange-700 hover:bg-orange-600 text-white w-full"
-                      onClick={() => openEditModal("activities")}
-                    >
-                      Update Activities
-                    </Button>
-                  </div>
-                </div>
               </CardContent>
             </Card>
           </TabsContent>
