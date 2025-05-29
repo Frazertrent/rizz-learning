@@ -40,6 +40,12 @@ let globalParentInvolvement = 'minimal parent involvement'
 let globalEducationalValues = 'STEM excellence'
 let globalGradeLevel = 'my child'
 let globalEducationalGoals = 'early graduation with an associate\'s degree'
+let globalOutcomeLevel = 'proficient level'
+let globalEducationBudget = 200
+let globalStartTime = '8:00'
+let globalEndTime = '15:00'  
+let globalBlockLength = 90
+let globalBudgetText = 'My budget is approximately $50 per subject based on my $200/month education budget across 4 daily blocks.'
 
 // Helper function to validate URLs
 function isValidUrl(urlString: string): boolean {
@@ -239,16 +245,7 @@ const fetchGradeLevel = async (parentId: string, studentId?: string): Promise<st
 
 // Generate personalized prompt using client-side OpenAI
 const generatePersonalizedPrompt = async (parentId: string, subject: string, course: string): Promise<string> => {
-  try {
-    console.log('Fetching data for parentId:', parentId)
-    
-    // Default prompt if no parent data is available
-    return `Find a ${subject} platform for ${course} that fits ${globalGradeLevel} who learns best through ${globalLearningStyle}. My goal is ${globalEducationalGoals} at a proficient level. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}.`
-  } catch (error) {
-    console.error('Error in generatePersonalizedPrompt:', error)
-    // Fallback prompt
-    return `Find a ${subject} platform for ${course} that fits ${globalGradeLevel} who learns best through ${globalLearningStyle}. My goal is ${globalEducationalGoals} at a proficient level. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}.`
-  }
+  return `I am looking for an online learning platform for ${globalGradeLevel} to study ${course} in ${subject}. My educational goal is ${globalEducationalGoals} at a ${globalOutcomeLevel}. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. ${globalBudgetText}`
 }
 
 // Add fetchEducationalGoals function
@@ -310,6 +307,175 @@ const fetchEducationalGoals = async (parentId: string): Promise<string> => {
   }
 }
 
+const fetchOutcomeLevel = async (parentId: string): Promise<string> => {
+  console.log('🔍 fetchOutcomeLevel started with parentId:', parentId)
+  
+  if (!parentId) {
+    console.log('❌ No parentId provided, using default')
+    globalOutcomeLevel = 'proficient level'
+    return 'proficient level'
+  }
+  
+  try {
+    console.log('📡 Querying parent_intake_form for outcome_level...')
+    
+    const { data, error } = await supabase
+      .from('parent_intake_form')
+      .select('outcome_level')
+      .eq('parent_id', parentId)
+      .limit(1)
+      .single()
+    
+    console.log('📊 Outcome level query completed')
+    console.log('📊 Data received:', data)
+    console.log('📊 Error received:', error)
+    
+    if (data && data.outcome_level) {
+      const outcomeText = `${data.outcome_level} level`
+      console.log('✅ Found outcome level:', data.outcome_level)
+      console.log('✅ Using outcome text:', outcomeText)
+      globalOutcomeLevel = outcomeText
+      return outcomeText
+    } else {
+      console.log('⚠️ No outcome level found, using default')
+      globalOutcomeLevel = 'proficient level'
+      return 'proficient level'
+    }
+  } catch (error) {
+    console.log('💥 Error in fetchOutcomeLevel:', error)
+    globalOutcomeLevel = 'proficient level'
+    return 'proficient level'
+  }
+}
+
+const fetchEducationBudget = async (parentId: string): Promise<number> => {
+  console.log('🔍 fetchEducationBudget started with parentId:', parentId)
+  
+  if (!parentId) {
+    console.log('❌ No parentId provided, using default')
+    globalEducationBudget = 200
+    return 200
+  }
+  
+  try {
+    console.log('📡 Querying parent_intake_form for education_budget...')
+    
+    const { data, error } = await supabase
+      .from('parent_intake_form')
+      .select('education_budget')
+      .eq('parent_id', parentId)
+      .limit(1)
+      .single()
+    
+    console.log('📊 Education budget query completed')
+    console.log('📊 Data received:', data)
+    console.log('📊 Error received:', error)
+    
+    if (data && data.education_budget) {
+      console.log('✅ Found education budget:', data.education_budget)
+      globalEducationBudget = data.education_budget
+      return data.education_budget
+    } else {
+      console.log('⚠️ No education budget found, using default')
+      globalEducationBudget = 200
+      return 200
+    }
+  } catch (error) {
+    console.log('💥 Error in fetchEducationBudget:', error)
+    globalEducationBudget = 200
+    return 200
+  }
+}
+
+const fetchTimeData = async (parentId: string): Promise<{startTime: string, endTime: string, blockLength: number}> => {
+  console.log('🔍 fetchTimeData started with parentId:', parentId)
+  
+  if (!parentId) {
+    console.log('❌ No parentId provided, using defaults')
+    globalStartTime = '8:00'
+    globalEndTime = '15:00'
+    globalBlockLength = 90
+    return { startTime: '8:00', endTime: '15:00', blockLength: 90 }
+  }
+  
+  try {
+    console.log('📡 Querying parent_intake_form for time data...')
+    
+    const { data, error } = await supabase
+      .from('parent_intake_form')
+      .select('start_time, end_time, block_length')
+      .eq('parent_id', parentId)
+      .limit(1)
+      .single()
+    
+    console.log('📊 Time data query completed')
+    console.log('📊 Data received:', data)
+    console.log('📊 Error received:', error)
+    
+    if (data) {
+      const startTime = data.start_time || '8:00'
+      const endTime = data.end_time || '15:00'
+      const blockLength = data.block_length || 90
+      
+      console.log('✅ Found time data - start:', startTime, 'end:', endTime, 'block length:', blockLength)
+      globalStartTime = startTime
+      globalEndTime = endTime
+      globalBlockLength = blockLength
+      
+      return { startTime, endTime, blockLength }
+    } else {
+      console.log('⚠️ No time data found, using defaults')
+      globalStartTime = '8:00'
+      globalEndTime = '15:00'
+      globalBlockLength = 90
+      return { startTime: '8:00', endTime: '15:00', blockLength: 90 }
+    }
+  } catch (error) {
+    console.log('💥 Error in fetchTimeData:', error)
+    globalStartTime = '8:00'
+    globalEndTime = '15:00'
+    globalBlockLength = 90
+    return { startTime: '8:00', endTime: '15:00', blockLength: 90 }
+  }
+}
+
+const calculateBudget = async (parentId: string): Promise<string> => {
+  console.log('🔍 calculateBudget started with parentId:', parentId)
+  
+  // Wait for both budget and time data to be fetched
+  const budgetAmount = await fetchEducationBudget(parentId)
+  const timeData = await fetchTimeData(parentId)
+  
+  console.log('💰 Budget calculation data:', { budgetAmount, timeData })
+  
+  // Calculate daily hours (convert time strings to minutes)
+  const startHour = parseInt(timeData.startTime.split(':')[0])
+  const startMinute = parseInt(timeData.startTime.split(':')[1] || '0')
+  const endHour = parseInt(timeData.endTime.split(':')[0])  
+  const endMinute = parseInt(timeData.endTime.split(':')[1] || '0')
+  
+  const startTotalMinutes = (startHour * 60) + startMinute
+  const endTotalMinutes = (endHour * 60) + endMinute
+  const dailyMinutes = endTotalMinutes - startTotalMinutes
+  
+  console.log('⏰ Time calculation:', { startTotalMinutes, endTotalMinutes, dailyMinutes })
+  
+  // Calculate number of daily blocks
+  const dailyBlocks = Math.round(dailyMinutes / timeData.blockLength)
+  
+  // Calculate budget per subject
+  const budgetPerSubject = Math.round(budgetAmount / dailyBlocks)
+  
+  console.log('🧮 Final calculation:', { dailyBlocks, budgetPerSubject })
+  
+  // Create the budget text
+  const budgetText = `My budget is approximately $${budgetPerSubject} per subject based on my $${budgetAmount}/month education budget across ${dailyBlocks} daily blocks.`
+  
+  console.log('✅ Generated budget text:', budgetText)
+  globalBudgetText = budgetText
+  return budgetText
+}
+
 export function CoursePlatformCard({
   subject,
   course,
@@ -349,7 +515,7 @@ export function CoursePlatformCard({
     console.log('Subject:', subject, 'Course:', course)
     
     if (parentId) {
-      console.log('Fetching all data: learning style, parent involvement, educational values, grade level, and educational goals...')
+      console.log('Fetching all data: learning style, parent involvement, educational values, grade level, educational goals, outcome level, education budget, time data, and calculating budget...')
       fetchLearningStyle(parentId).then(result => {
         console.log('fetchLearningStyle completed with result:', result)
       })
@@ -364,6 +530,18 @@ export function CoursePlatformCard({
       })
       fetchEducationalGoals(parentId).then(result => {
         console.log('fetchEducationalGoals completed with result:', result)
+      })
+      fetchOutcomeLevel(parentId).then(result => {
+        console.log('fetchOutcomeLevel completed with result:', result)
+      })
+      fetchEducationBudget(parentId).then(result => {
+        console.log('fetchEducationBudget completed with result:', result)
+      })
+      fetchTimeData(parentId).then(result => {
+        console.log('fetchTimeData completed with result:', result)
+      })
+      calculateBudget(parentId).then(result => {
+        console.log('calculateBudget completed with result:', result)
       })
     } else {
       console.log('No parentId provided, skipping data fetch')
@@ -384,8 +562,6 @@ export function CoursePlatformCard({
       const prompt = await generatePersonalizedPrompt(parentId || '', subject, course)
       console.log('Generated prompt:', prompt)
       
-      // EXAMPLE: "Find a Language Arts platform for Reading that fits my child who learns best through hands-on activities. My goal is early graduation with an associate's degree at a proficient level. I prefer structured independence with minimal parent involvement and value STEM excellence."
-      
       const response = await openai.chat.completions.create({
         model: "gpt-3.5-turbo",
         messages: [
@@ -402,14 +578,14 @@ export function CoursePlatformCard({
         max_tokens: 500
       })
 
-      const generatedPrompt = response.choices[0]?.message?.content || `Find a ${subject} platform for ${course} that fits ${globalGradeLevel} who learns best through ${globalLearningStyle}. My goal is ${globalEducationalGoals} at a proficient level. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}.`
+      const generatedPrompt = response.choices[0]?.message?.content || `Find a ${subject} platform for ${course} that fits ${globalGradeLevel} who learns best through ${globalLearningStyle}. My goal is ${globalEducationalGoals} at a ${globalOutcomeLevel}. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. ${globalBudgetText}`
       
       console.log('Setting search query to:', generatedPrompt)
       setSearchQuery(generatedPrompt)
       setPromptGenerated(true)
     } catch (error) {
       console.error('Error in generateInitialPrompt:', error)
-      const fallbackPrompt = `Find a ${subject} platform for ${course} that fits ${globalGradeLevel} who learns best through ${globalLearningStyle}. My goal is ${globalEducationalGoals} at a proficient level. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}.`
+      const fallbackPrompt = `Find a ${subject} platform for ${course} that fits ${globalGradeLevel} who learns best through ${globalLearningStyle}. My goal is ${globalEducationalGoals} at a ${globalOutcomeLevel}. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. ${globalBudgetText}`
       console.log('Setting fallback search query:', fallbackPrompt)
       setSearchQuery(fallbackPrompt)
       setPromptGenerated(true)
@@ -434,6 +610,8 @@ export function CoursePlatformCard({
 
   // Get fallback results when API fails
   const getFallbackResults = (): PlatformResult[] => {
+    const prompt = `I am looking for an online learning platform for ${globalGradeLevel} to study ${course} in ${subject}. My educational goal is ${globalEducationalGoals} at a ${globalOutcomeLevel}. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. ${globalBudgetText}`
+    
     return [
       {
         id: 1,
@@ -459,12 +637,12 @@ export function CoursePlatformCard({
     setError(null)
 
     try {
-      setSearchQuery(`Find a ${subject} platform for ${course} that fits ${globalGradeLevel} who learns best through ${globalLearningStyle}. My goal is ${globalEducationalGoals} at a proficient level. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}.`)
+      const prompt = `I am looking for an online learning platform for ${globalGradeLevel} to study ${course} in ${subject}. My educational goal is ${globalEducationalGoals} at a ${globalOutcomeLevel}. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. ${globalBudgetText}`
       
       const response = await fetch('/api/search-platforms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ searchQuery })
+        body: JSON.stringify({ searchQuery: prompt })
       })
       const data = await response.json()
       setSearchResults(data.results)
