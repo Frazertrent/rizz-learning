@@ -1469,6 +1469,7 @@ export default function TermPlanOverviewPage() {
                                           // This will be handled by the existing help toggle functionality
                                         }}
                                         parentId={userId}
+                                        studentId={activeStudentId}
                                       />
                                     );
                                   })}
@@ -1539,6 +1540,7 @@ export default function TermPlanOverviewPage() {
                                           // This will be handled by the existing help toggle functionality
                                         }}
                                         parentId={userId}
+                                        studentId={activeStudentId}
                                       />
                                     );
                                   })}
@@ -1630,7 +1632,7 @@ export default function TermPlanOverviewPage() {
                     className="bg-green-700 hover:bg-green-600 text-white"
                     onClick={() => openEditModal("schedule")}
                   >
-                    Edit Schedule Blocks
+                    Edit Schedule
                   </Button>
                 </div>
               </CardContent>
@@ -1704,6 +1706,7 @@ export default function TermPlanOverviewPage() {
                                       // This will be handled by the existing help toggle functionality
                                     }}
                                     parentId={userId}
+                                    studentId={activeStudentId}
                                   />
                                 );
                               })}

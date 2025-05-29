@@ -24,6 +24,7 @@ interface CoursePlatformCardProps {
   onPlatformSelect?: (url: string) => void
   onHelpToggle?: (needsHelp: boolean) => void
   parentId?: string
+  studentId?: string
 }
 
 const openai = new OpenAI({
@@ -37,6 +38,8 @@ const supabase = createClientComponentClient()
 let globalLearningStyle = 'hands-on activities'
 let globalParentInvolvement = 'minimal parent involvement'
 let globalEducationalValues = 'STEM excellence'
+let globalGradeLevel = 'my child'
+let globalEducationalGoals = 'early graduation with an associate\'s degree'
 
 // Helper function to validate URLs
 function isValidUrl(urlString: string): boolean {
@@ -193,75 +196,117 @@ const fetchEducationalValues = async (parentId: string): Promise<string> => {
   }
 }
 
+// Update fetchGradeLevel function
+const fetchGradeLevel = async (parentId: string, studentId?: string): Promise<string> => {
+  console.log('🔍 fetchGradeLevel started with parentId:', parentId, 'studentId:', studentId)
+  
+  if (!parentId || !studentId) {
+    console.log('❌ No parentId or studentId provided, using default')
+    globalGradeLevel = 'my child'
+    return 'my child'
+  }
+  
+  try {
+    console.log('📡 Querying student table for specific student grade_level...')
+    
+    const { data, error } = await supabase
+      .from('student')
+      .select('grade_level, first_name, id')
+      .eq('id', studentId)  // Query by specific student ID
+      .single()
+    
+    console.log('📊 Grade level query completed')
+    console.log('📊 Data received:', data)
+    console.log('📊 Error received:', error)
+    
+    if (data && data.grade_level) {
+      const gradeText = `my ${data.grade_level} grader`
+      console.log('✅ Found grade level for', data.first_name, ':', data.grade_level)
+      console.log('✅ Using grade text:', gradeText)
+      globalGradeLevel = gradeText
+      return gradeText
+    } else {
+      console.log('⚠️ No grade level found, using default')
+      globalGradeLevel = 'my child'
+      return 'my child'
+    }
+  } catch (error) {
+    console.log('💥 Error in fetchGradeLevel:', error)
+    globalGradeLevel = 'my child'
+    return 'my child'
+  }
+}
+
 // Generate personalized prompt using client-side OpenAI
 const generatePersonalizedPrompt = async (parentId: string, subject: string, course: string): Promise<string> => {
   try {
     console.log('Fetching data for parentId:', parentId)
     
-    // Fetch parent data using client-side Supabase (where auth works)
-    const [intakeResult, assessmentResult] = await Promise.allSettled([
-      supabase
-        .from('parent_intake_form')
-        .select('learning_style, educational_goals, other_goal, outcome_level, structure_preference, educational_values, parent_involvement, education_budget')
-        .eq('parent_id', parentId)
-        .maybeSingle(),
-      supabase
-        .from('parent_onboarding_assessment')
-        .select('child_age_grade, learning_style, parent_involvement')
-        .eq('parent_id', parentId)
-        .maybeSingle()
-    ])
-    
-    const intakeData = intakeResult.status === 'fulfilled' ? intakeResult.value.data : null
-    const assessmentData = assessmentResult.status === 'fulfilled' ? assessmentResult.value.data : null
-    
-    console.log('Client-side fetched intakeData:', intakeData)
-    console.log('Client-side fetched assessmentData:', assessmentData)
-    
-    if (!intakeData && !assessmentData) {
-      return `Find a ${subject} platform for ${course} that fits my 9th grader who learns best through ${globalLearningStyle}. My goal is early graduation with an associate's degree at a proficient level. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. My budget is approximately $50 per subject based on my $200/month education budget across 4 daily blocks.`
-    }
-    
-    // Calculate budget per subject
-    const dailyBlocks = 4
-    const totalBudget = intakeData?.education_budget || 200
-    const budgetPerBlock = totalBudget / dailyBlocks
-    
-    const systemPrompt = `You are a helpful assistant that creates personalized homeschool platform search requests. Transform the given parent preferences into a natural, conversational search request.`
-    
-    const userPrompt = `Create a personalized search request for finding a ${subject} platform for a ${course} course using these parent preferences:
-
-PARENT PREFERENCES:
-- Child Age/Grade: ${assessmentData?.child_age_grade || 'Not specified'}
-- Learning Style: ${intakeData?.learning_style || assessmentData?.learning_style || 'Not specified'}
-- Educational Goals: ${intakeData?.educational_goals || 'Not specified'}${intakeData?.other_goal ? ' (' + intakeData.other_goal + ')' : ''}
-- Outcome Level: ${intakeData?.outcome_level || 'Not specified'}
-- Structure Preference: ${intakeData?.structure_preference || 'Not specified'}
-- Educational Values: ${intakeData?.educational_values || 'Not specified'}
-- Parent Involvement Preference: ${intakeData?.parent_involvement || assessmentData?.parent_involvement || 'Not specified'}
-- Budget per subject: $${budgetPerBlock.toFixed(0)} (from total budget of $${totalBudget}/month ÷ ${dailyBlocks} daily time blocks)
-
-Write in first person as if the parent is speaking. Make it conversational and natural. Include specific preferences that would help in platform selection. Keep it 2-3 sentences maximum.
-
-EXAMPLE: "Find a Language Arts platform for Reading that fits my 9th grader who learns best through hands-on activities. My goal is early graduation with an associate's degree at a proficient level. I prefer structured independence with minimal parent involvement and value STEM excellence. My budget is approximately $50 per subject based on my $200/month education budget across 4 daily blocks."
-
-Create a similar request for ${subject} - ${course}:`
-    
-    const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ],
-      max_tokens: 300,
-      temperature: 0.7,
-    })
-    
-    return response.choices[0]?.message?.content || `Find a ${subject} platform for ${course} that fits my 9th grader who learns best through ${globalLearningStyle}. My goal is early graduation with an associate's degree at a proficient level. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. My budget is approximately $50 per subject based on my $200/month education budget across 4 daily blocks.`
-    
+    // Default prompt if no parent data is available
+    return `Find a ${subject} platform for ${course} that fits ${globalGradeLevel} who learns best through ${globalLearningStyle}. My goal is ${globalEducationalGoals} at a proficient level. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}.`
   } catch (error) {
-    console.error('Error generating personalized prompt:', error)
-    return `Find a ${subject} platform for ${course} that fits my 9th grader who learns best through ${globalLearningStyle}. My goal is early graduation with an associate's degree at a proficient level. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. My budget is approximately $50 per subject based on my $200/month education budget across 4 daily blocks.`
+    console.error('Error in generatePersonalizedPrompt:', error)
+    // Fallback prompt
+    return `Find a ${subject} platform for ${course} that fits ${globalGradeLevel} who learns best through ${globalLearningStyle}. My goal is ${globalEducationalGoals} at a proficient level. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}.`
+  }
+}
+
+// Add fetchEducationalGoals function
+const fetchEducationalGoals = async (parentId: string): Promise<string> => {
+  console.log('🔍 fetchEducationalGoals started with parentId:', parentId)
+  
+  if (!parentId) {
+    console.log('❌ No parentId provided, using default')
+    globalEducationalGoals = 'early graduation with an associate\'s degree'
+    return 'early graduation with an associate\'s degree'
+  }
+  
+  try {
+    console.log('📡 Querying term_plans table for goals...')
+    
+    const { data, error } = await supabase
+      .from('term_plans')
+      .select('goals')
+      .eq('user_id', parentId)
+      .limit(1)
+      .single()
+    
+    console.log('📊 Educational goals query completed')
+    console.log('📊 Data received:', data)
+    console.log('📊 Error received:', error)
+    
+    if (data && data.goals) {
+      // Convert array of goals to readable text
+      let goalsArray = data.goals
+      
+      // Handle if it's a string that looks like an array
+      if (typeof goalsArray === 'string') {
+        try {
+          goalsArray = JSON.parse(goalsArray)
+        } catch (e) {
+          console.log('Could not parse goals as JSON, using as string')
+          goalsArray = [goalsArray]
+        }
+      }
+      
+      // Convert goals array to natural sentence
+      const goalsText = Array.isArray(goalsArray) 
+        ? goalsArray.join(', ').toLowerCase()
+        : goalsArray.toLowerCase()
+      
+      console.log('✅ Found educational goals:', data.goals)
+      console.log('✅ Using goals text:', goalsText)
+      globalEducationalGoals = goalsText
+      return goalsText
+    } else {
+      console.log('⚠️ No educational goals found, using default')
+      globalEducationalGoals = 'early graduation with an associate\'s degree'
+      return 'early graduation with an associate\'s degree'
+    }
+  } catch (error) {
+    console.log('💥 Error in fetchEducationalGoals:', error)
+    globalEducationalGoals = 'early graduation with an associate\'s degree'
+    return 'early graduation with an associate\'s degree'
   }
 }
 
@@ -273,6 +318,7 @@ export function CoursePlatformCard({
   onPlatformSelect,
   onHelpToggle,
   parentId,
+  studentId
 }: CoursePlatformCardProps) {
   const [url, setUrl] = useState(platformUrl || "")
   const [title, setTitle] = useState(course || subject)
@@ -283,6 +329,7 @@ export function CoursePlatformCard({
   const [showResults, setShowResults] = useState(false)
   const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false)
   const [promptGenerated, setPromptGenerated] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Load default platform URL if none provided
   useEffect(() => {
@@ -295,14 +342,14 @@ export function CoursePlatformCard({
     }
   }, [subject, course, platformUrl])
 
-  // Fetch learning style when component mounts
+  // Update useEffect
   useEffect(() => {
     console.log('=== PARENT DATA DEBUG START ===')
-    console.log('Component mounted with parentId:', parentId)
+    console.log('Component mounted with parentId:', parentId, 'studentId:', studentId)
     console.log('Subject:', subject, 'Course:', course)
     
     if (parentId) {
-      console.log('Fetching learning style, parent involvement, and educational values...')
+      console.log('Fetching all data: learning style, parent involvement, educational values, grade level, and educational goals...')
       fetchLearningStyle(parentId).then(result => {
         console.log('fetchLearningStyle completed with result:', result)
       })
@@ -312,11 +359,17 @@ export function CoursePlatformCard({
       fetchEducationalValues(parentId).then(result => {
         console.log('fetchEducationalValues completed with result:', result)
       })
+      fetchGradeLevel(parentId, studentId).then(result => {
+        console.log('fetchGradeLevel completed with result:', result)
+      })
+      fetchEducationalGoals(parentId).then(result => {
+        console.log('fetchEducationalGoals completed with result:', result)
+      })
     } else {
       console.log('No parentId provided, skipping data fetch')
     }
     console.log('=== PARENT DATA DEBUG END ===')
-  }, [parentId])
+  }, [parentId, studentId])
 
   // Generate initial prompt when search opens
   useEffect(() => {
@@ -326,19 +379,43 @@ export function CoursePlatformCard({
   }, [showSearch, promptGenerated, url])
 
   const generateInitialPrompt = async () => {
-    setIsGeneratingPrompt(true)
-    
-    if (!parentId) {
-      setSearchQuery(`Find a ${subject} platform for ${course} that fits my 9th grader who learns best through ${globalLearningStyle}. My goal is early graduation with an associate's degree at a proficient level. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. My budget is approximately $50 per subject based on my $200/month education budget across 4 daily blocks.`)
+    try {
+      setIsGeneratingPrompt(true)
+      const prompt = await generatePersonalizedPrompt(parentId || '', subject, course)
+      console.log('Generated prompt:', prompt)
+      
+      // EXAMPLE: "Find a Language Arts platform for Reading that fits my child who learns best through hands-on activities. My goal is early graduation with an associate's degree at a proficient level. I prefer structured independence with minimal parent involvement and value STEM excellence."
+      
+      const response = await openai.chat.completions.create({
+        model: "gpt-3.5-turbo",
+        messages: [
+          {
+            role: "system",
+            content: "You are a helpful assistant that recommends educational platforms and resources for homeschooling families."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 500
+      })
+
+      const generatedPrompt = response.choices[0]?.message?.content || `Find a ${subject} platform for ${course} that fits ${globalGradeLevel} who learns best through ${globalLearningStyle}. My goal is ${globalEducationalGoals} at a proficient level. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}.`
+      
+      console.log('Setting search query to:', generatedPrompt)
+      setSearchQuery(generatedPrompt)
       setPromptGenerated(true)
+    } catch (error) {
+      console.error('Error in generateInitialPrompt:', error)
+      const fallbackPrompt = `Find a ${subject} platform for ${course} that fits ${globalGradeLevel} who learns best through ${globalLearningStyle}. My goal is ${globalEducationalGoals} at a proficient level. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}.`
+      console.log('Setting fallback search query:', fallbackPrompt)
+      setSearchQuery(fallbackPrompt)
+      setPromptGenerated(true)
+    } finally {
       setIsGeneratingPrompt(false)
-      return
     }
-    
-    const personalizedPrompt = await generatePersonalizedPrompt(parentId, subject, course)
-    setSearchQuery(personalizedPrompt)
-    setPromptGenerated(true)
-    setIsGeneratingPrompt(false)
   }
 
   // Handle platform selection
@@ -377,12 +454,13 @@ export function CoursePlatformCard({
 
   // Handle platform search using API
   const handleSearch = async () => {
-    if (!searchQuery.trim()) return
-    
     setIsSearching(true)
-    setShowResults(false)
-    
+    setSearchResults([])
+    setError(null)
+
     try {
+      setSearchQuery(`Find a ${subject} platform for ${course} that fits ${globalGradeLevel} who learns best through ${globalLearningStyle}. My goal is ${globalEducationalGoals} at a proficient level. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}.`)
+      
       const response = await fetch('/api/search-platforms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
