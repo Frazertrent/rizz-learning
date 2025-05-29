@@ -33,6 +33,9 @@ const openai = new OpenAI({
 
 const supabase = createClientComponentClient()
 
+// Add learningStyle state at the top level
+let globalLearningStyle = 'hands-on activities'
+
 // Helper function to validate URLs
 function isValidUrl(urlString: string): boolean {
   try {
@@ -40,6 +43,56 @@ function isValidUrl(urlString: string): boolean {
     return true
   } catch (e) {
     return false
+  }
+}
+
+// Add fetchLearningStyle at the top level
+const fetchLearningStyle = async (parentId: string): Promise<string> => {
+  console.log('🔍 fetchLearningStyle started with parentId:', parentId)
+  
+  if (!parentId) {
+    console.log('❌ No parentId provided, using default')
+    globalLearningStyle = 'hands-on activities'
+    return 'hands-on activities'
+  }
+  
+  try {
+    console.log('📡 Querying parent_intake_form table...')
+    
+    const { data, error } = await supabase
+      .from('parent_intake_form')
+      .select('structure_preference')
+      .eq('parent_id', parentId)
+      .limit(1)
+      .single()
+    
+    console.log('📊 Supabase query completed')
+    console.log('📊 Data received:', data)
+    console.log('📊 Error received:', error)
+    
+    if (data && data.structure_preference) {
+      // Convert structure_preference to learning style for the prompt
+      const learningStyleMap: Record<string, string> = {
+        'balance': 'balanced learning approaches',
+        'structured': 'structured activities', 
+        'flexible': 'flexible methods',
+        'independent': 'independent study'
+      }
+      
+      const learningStyle = learningStyleMap[data.structure_preference] || data.structure_preference
+      console.log('✅ Found structure preference:', data.structure_preference)
+      console.log('✅ Using learning style:', learningStyle)
+      globalLearningStyle = learningStyle
+      return learningStyle
+    } else {
+      console.log('⚠️ No structure preference found, using default')
+      globalLearningStyle = 'hands-on activities'
+      return 'hands-on activities'
+    }
+  } catch (error) {
+    console.log('💥 Error in fetchLearningStyle:', error)
+    globalLearningStyle = 'hands-on activities'
+    return 'hands-on activities'
   }
 }
 
@@ -69,7 +122,7 @@ const generatePersonalizedPrompt = async (parentId: string, subject: string, cou
     console.log('Client-side fetched assessmentData:', assessmentData)
     
     if (!intakeData && !assessmentData) {
-      return `Find a ${subject} platform for ${course} that fits my educational goals and budget.`
+      return `Find a ${subject} platform for ${course} that fits my 9th grader who learns best through ${globalLearningStyle}. My goal is early graduation with an associate's degree at a proficient level. I prefer structured independence with minimal parent involvement and value STEM excellence. My budget is approximately $50 per subject based on my $200/month education budget across 4 daily blocks.`
     }
     
     // Calculate budget per subject
@@ -107,11 +160,11 @@ Create a similar request for ${subject} - ${course}:`
       temperature: 0.7,
     })
     
-    return response.choices[0]?.message?.content || `Find a ${subject} platform for ${course} that fits my educational goals and budget.`
+    return response.choices[0]?.message?.content || `Find a ${subject} platform for ${course} that fits my 9th grader who learns best through ${globalLearningStyle}. My goal is early graduation with an associate's degree at a proficient level. I prefer structured independence with minimal parent involvement and value STEM excellence. My budget is approximately $50 per subject based on my $200/month education budget across 4 daily blocks.`
     
   } catch (error) {
     console.error('Error generating personalized prompt:', error)
-    return `Find a ${subject} platform for ${course} that fits my educational goals and budget.`
+    return `Find a ${subject} platform for ${course} that fits my 9th grader who learns best through ${globalLearningStyle}. My goal is early graduation with an associate's degree at a proficient level. I prefer structured independence with minimal parent involvement and value STEM excellence. My budget is approximately $50 per subject based on my $200/month education budget across 4 daily blocks.`
   }
 }
 
@@ -145,6 +198,24 @@ export function CoursePlatformCard({
     }
   }, [subject, course, platformUrl])
 
+  // Fetch learning style when component mounts
+  useEffect(() => {
+    console.log('=== LEARNING STYLE DEBUG START ===')
+    console.log('Component mounted with parentId:', parentId)
+    console.log('Subject:', subject, 'Course:', course)
+    
+    if (parentId) {
+      console.log('Calling fetchLearningStyle with parentId:', parentId)
+      fetchLearningStyle(parentId).then(result => {
+        console.log('fetchLearningStyle completed with result:', result)
+        console.log('globalLearningStyle is now:', globalLearningStyle)
+      })
+    } else {
+      console.log('No parentId provided, skipping fetchLearningStyle')
+    }
+    console.log('=== LEARNING STYLE DEBUG END ===')
+  }, [parentId])
+
   // Generate initial prompt when search opens
   useEffect(() => {
     if (showSearch && !promptGenerated && !isValidUrl(url)) {
@@ -156,7 +227,7 @@ export function CoursePlatformCard({
     setIsGeneratingPrompt(true)
     
     if (!parentId) {
-      setSearchQuery(`Find a ${subject} platform for ${course} that fits my educational goals and budget.`)
+      setSearchQuery(`Find a ${subject} platform for ${course} that fits my 9th grader who learns best through ${globalLearningStyle}. My goal is early graduation with an associate's degree at a proficient level. I prefer structured independence with minimal parent involvement and value STEM excellence. My budget is approximately $50 per subject based on my $200/month education budget across 4 daily blocks.`)
       setPromptGenerated(true)
       setIsGeneratingPrompt(false)
       return
