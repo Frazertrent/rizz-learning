@@ -5,7 +5,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { getPlatformForCourse } from "@/lib/platform-mappings"
 import { BookOpen, ExternalLink, Search, Loader2 } from "lucide-react"
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { useToast } from '@/hooks/use-toast'
+import { supabase } from '@/lib/supabase'
 import OpenAI from 'openai'
 
 interface PlatformResult {
@@ -31,8 +35,6 @@ const openai = new OpenAI({
   apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
   dangerouslyAllowBrowser: true
 })
-
-const supabase = createClientComponentClient()
 
 // Add learningStyle state at the top level
 let globalLearningStyle = 'hands-on activities'
@@ -226,11 +228,22 @@ const fetchGradeLevel = async (parentId: string, studentId?: string): Promise<st
     console.log('📊 Error received:', error)
     
     if (data && data.grade_level) {
-      const gradeText = `my ${data.grade_level} grader`
+      // Format grade level text properly
+      let gradeText = data.grade_level.toLowerCase()
+      
+      // Remove redundant "grader" if present
+      gradeText = gradeText.replace(/\s*grader\s*$/i, '')
+      
+      // Replace "grade" with "Grader"
+      gradeText = gradeText.replace(/\s*grade\s*$/i, '')
+      
+      // Add "Grader" suffix
+      const formattedGrade = `my ${gradeText} Grader`
+      
       console.log('✅ Found grade level for', data.first_name, ':', data.grade_level)
-      console.log('✅ Using grade text:', gradeText)
-      globalGradeLevel = gradeText
-      return gradeText
+      console.log('✅ Using formatted grade text:', formattedGrade)
+      globalGradeLevel = formattedGrade
+      return formattedGrade
     } else {
       console.log('⚠️ No grade level found, using default')
       globalGradeLevel = 'my child'
@@ -245,7 +258,12 @@ const fetchGradeLevel = async (parentId: string, studentId?: string): Promise<st
 
 // Generate personalized prompt using client-side OpenAI
 const generatePersonalizedPrompt = async (parentId: string, subject: string, course: string): Promise<string> => {
-  return `I am looking for an online learning platform for ${globalGradeLevel} to study ${course} in ${subject}. My educational goal is ${globalEducationalGoals} at a ${globalOutcomeLevel}. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. ${globalBudgetText}`
+  // Format educational goals with proper grammar
+  const formattedGoals = globalEducationalGoals.includes(',') 
+    ? globalEducationalGoals.replace(/,([^,]*)$/, ', and$1')
+    : globalEducationalGoals
+
+  return `Find me a ${subject} platform for a ${course} course that fits ${globalGradeLevel} who learns best through ${globalLearningStyle}. My goal is ${formattedGoals} at a ${globalOutcomeLevel}. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. ${globalBudgetText.replace('My budget is approximately', 'My budget limit is approximately')}`
 }
 
 // Add fetchEducationalGoals function
@@ -578,14 +596,24 @@ export function CoursePlatformCard({
         max_tokens: 500
       })
 
-      const generatedPrompt = response.choices[0]?.message?.content || `Find a ${subject} platform for ${course} that fits ${globalGradeLevel} who learns best through ${globalLearningStyle}. My goal is ${globalEducationalGoals} at a ${globalOutcomeLevel}. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. ${globalBudgetText}`
+      // Format educational goals with proper grammar
+      const formattedGoals = globalEducationalGoals.includes(',') 
+        ? globalEducationalGoals.replace(/,([^,]*)$/, ', and$1')
+        : globalEducationalGoals
+
+      const generatedPrompt = response.choices[0]?.message?.content || `Find me a ${subject} platform for a ${course} course that fits ${globalGradeLevel} who learns best through ${globalLearningStyle}. My goal is ${formattedGoals} at a ${globalOutcomeLevel}. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. ${globalBudgetText.replace('My budget is approximately', 'My budget limit is approximately')}`
       
       console.log('Setting search query to:', generatedPrompt)
       setSearchQuery(generatedPrompt)
       setPromptGenerated(true)
     } catch (error) {
       console.error('Error in generateInitialPrompt:', error)
-      const fallbackPrompt = `Find a ${subject} platform for ${course} that fits ${globalGradeLevel} who learns best through ${globalLearningStyle}. My goal is ${globalEducationalGoals} at a ${globalOutcomeLevel}. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. ${globalBudgetText}`
+      // Format educational goals with proper grammar
+      const formattedGoals = globalEducationalGoals.includes(',') 
+        ? globalEducationalGoals.replace(/,([^,]*)$/, ', and$1')
+        : globalEducationalGoals
+
+      const fallbackPrompt = `Find me a ${subject} platform for a ${course} course that fits ${globalGradeLevel} who learns best through ${globalLearningStyle}. My goal is ${formattedGoals} at a ${globalOutcomeLevel}. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. ${globalBudgetText.replace('My budget is approximately', 'My budget limit is approximately')}`
       console.log('Setting fallback search query:', fallbackPrompt)
       setSearchQuery(fallbackPrompt)
       setPromptGenerated(true)
@@ -610,7 +638,12 @@ export function CoursePlatformCard({
 
   // Get fallback results when API fails
   const getFallbackResults = (): PlatformResult[] => {
-    const prompt = `I am looking for an online learning platform for ${globalGradeLevel} to study ${course} in ${subject}. My educational goal is ${globalEducationalGoals} at a ${globalOutcomeLevel}. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. ${globalBudgetText}`
+    // Format educational goals with proper grammar
+    const formattedGoals = globalEducationalGoals.includes(',') 
+      ? globalEducationalGoals.replace(/,([^,]*)$/, ', and$1')
+      : globalEducationalGoals
+
+    const prompt = `Find me a ${subject} platform for a ${course} course that fits ${globalGradeLevel} who learns best through ${globalLearningStyle}. My goal is ${formattedGoals} at a ${globalOutcomeLevel}. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. ${globalBudgetText.replace('My budget is approximately', 'My budget limit is approximately')}`
     
     return [
       {
@@ -637,7 +670,12 @@ export function CoursePlatformCard({
     setError(null)
 
     try {
-      const prompt = `I am looking for an online learning platform for ${globalGradeLevel} to study ${course} in ${subject}. My educational goal is ${globalEducationalGoals} at a ${globalOutcomeLevel}. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. ${globalBudgetText}`
+      // Format educational goals with proper grammar
+      const formattedGoals = globalEducationalGoals.includes(',') 
+        ? globalEducationalGoals.replace(/,([^,]*)$/, ', and$1')
+        : globalEducationalGoals
+
+      const prompt = `Find me a ${subject} platform for a ${course} course that fits ${globalGradeLevel} who learns best through ${globalLearningStyle}. My goal is ${formattedGoals} at a ${globalOutcomeLevel}. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. ${globalBudgetText.replace('My budget is approximately', 'My budget limit is approximately')}`
       
       const response = await fetch('/api/search-platforms', {
         method: 'POST',

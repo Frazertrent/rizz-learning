@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { useRouter } from "next/navigation"
+import { supabase } from "@/lib/supabase"
 import { Save } from "lucide-react"
 import Link from "next/link"
 
@@ -22,7 +23,7 @@ export function PlatformPlanBuilder() {
   const [notes, setNotes] = useState<Record<string, string>>({})
   const { toast } = useToast()
 
-  const supabase = createClientComponentClient()
+  const router = useRouter()
 
   // Fetch students
   useEffect(() => {

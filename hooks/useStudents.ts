@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 
 export interface Student {
@@ -21,9 +21,6 @@ export const useStudents = (studentIds?: string[]): UseStudentsResult => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-  
-  // Create Supabase client once
-  const supabase = createClientComponentClient();
 
   const fetchStudents = useCallback(async () => {
     try {
@@ -87,7 +84,7 @@ export const useStudents = (studentIds?: string[]): UseStudentsResult => {
     } finally {
       setLoading(false);
     }
-  }, [supabase, studentIds, router]);
+  }, [studentIds, router]);
 
   useEffect(() => {
     fetchStudents();
@@ -106,7 +103,7 @@ export const useStudents = (studentIds?: string[]): UseStudentsResult => {
     return () => {
       subscription.unsubscribe();
     };
-  }, [fetchStudents, supabase.auth, router]);
+  }, [fetchStudents, router]);
 
   const refetch = useCallback(() => {
     fetchStudents();

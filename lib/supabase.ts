@@ -4,21 +4,53 @@ import type { Database } from "./database.types"
 // Use the environment variables
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error("Missing Supabase environment variables")
 }
 
-// Create a single supabase client for the browser
+// Create a single supabase client for the browser with timeout configuration
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
+    detectSessionInUrl: true,
   },
   global: {
     headers: { 'x-application-name': 'homeschool-dashboard' },
+    fetch: (...args) => {
+      const [url, config] = args
+      return fetch(url as string, {
+        ...config as RequestInit,
+        signal: AbortSignal.timeout(25000) // 25 second timeout
+      })
+    }
   },
 })
+
+// Create a single supabase server client for server-side operations
+export const supabaseServer = createClient<Database>(
+  supabaseUrl,
+  supabaseServiceKey || supabaseAnonKey,
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+    global: {
+      headers: { 'x-application-name': 'homeschool-dashboard-server' },
+    },
+  }
+)
+
+// Re-export the createClient function with a warning
+export const createClientWithWarning = (...args: Parameters<typeof createClient>) => {
+  console.warn(
+    'Warning: Using createClient directly is deprecated. Import { supabase } from "@/lib/supabase" instead.'
+  )
+  return createClient(...args)
+}
 
 // Helper function to get the current user
 export async function getCurrentUser() {

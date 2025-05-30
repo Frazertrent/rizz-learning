@@ -14,11 +14,13 @@ function LoginFormWithSearchParams({ searchParams }: { searchParams?: { redirect
   return <LoginForm searchParams={searchParams} />
 }
 
-export default function LoginPage({
+export default async function LoginPage({
   searchParams,
 }: {
-  searchParams?: { redirect?: string }
+  searchParams: Promise<{ redirect?: string }>
 }) {
+  const resolvedSearchParams = await searchParams
+
   return (
     <div className="container flex h-screen w-screen flex-col items-center justify-center">
       <Link href="/" className="absolute left-4 top-4 md:left-8 md:top-8">
@@ -30,7 +32,7 @@ export default function LoginPage({
           <p className="text-sm text-muted-foreground">Enter your email to sign in to your account</p>
         </div>
         <Suspense fallback={<div className="p-4 text-center">Loading login form...</div>}>
-          <LoginFormWithSearchParams searchParams={searchParams} />
+          <LoginFormWithSearchParams searchParams={resolvedSearchParams} />
         </Suspense>
       </div>
     </div>

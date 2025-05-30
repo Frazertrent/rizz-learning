@@ -18,7 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { createClient } from "@supabase/supabase-js"
+import { supabase } from "@/lib/supabase"
 import { PlusCircleIcon } from "lucide-react"
 
 // Common predefined options
@@ -719,59 +719,51 @@ export function SubjectsModal({ open, onOpenChange, studentId, studentName, subj
   const [availableCourses, setAvailableCourses] = useState<{ [subject: string]: string[] }>({})
   const [loading, setLoading] = useState(true)
 
-  // Fetch available subjects and courses from Supabase
-  useEffect(() => {
-    const fetchSubjectsAndCourses = async () => {
-      try {
-        const supabase = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        )
+  const fetchSubjectsAndCourses = async () => {
+    try {
+      const { data: subjectsData, error: subjectsError } = await supabase
+        .from("subjects_and_courses")
+        .select("*")
+        .order("subject")
 
-        // Fetch subjects
-        const { data: subjectsData, error: subjectsError } = await supabase
-          .from('subjects')
-          .select('*')
-          .order('name')
-
-        if (subjectsError) {
-          console.error('Error fetching subjects:', subjectsError)
-          return
-        }
-
-        // Separate core and extended subjects
-        const core = subjectsData?.filter(s => s.type === 'core').map(s => s.name) || []
-        const extended = subjectsData?.filter(s => s.type === 'extended').map(s => s.name) || []
-        setAvailableSubjects({ core, extended })
-
-        // Fetch courses for each subject
-        const coursesMap: { [subject: string]: string[] } = {}
-        for (const subject of subjectsData || []) {
-          const { data: coursesData, error: coursesError } = await supabase
-            .from('courses')
-            .select('name')
-            .eq('subject_id', subject.id)
-            .order('name')
-
-          if (coursesError) {
-            console.error(`Error fetching courses for subject ${subject.name}:`, coursesError)
-            continue
-          }
-
-          coursesMap[subject.name] = coursesData?.map(c => c.name) || []
-        }
-        setAvailableCourses(coursesMap)
-      } catch (error) {
-        console.error('Error in fetchSubjectsAndCourses:', error)
-      } finally {
-        setLoading(false)
+      if (subjectsError) {
+        console.error("Error fetching subjects:", subjectsError)
+        return
       }
-    }
 
-    if (open) {
-      fetchSubjectsAndCourses()
+      // Process the data as before
+      const processedData = {
+        core: [] as string[],
+        extended: [] as string[],
+        courses: {} as Record<string, string[]>,
+      }
+
+      subjectsData.forEach((item) => {
+        const subject = item.subject
+        const course = item.course
+        const category = item.category?.toLowerCase() || "extended"
+
+        if (category === "core" && !processedData.core.includes(subject)) {
+          processedData.core.push(subject)
+        } else if (category === "extended" && !processedData.extended.includes(subject)) {
+          processedData.extended.push(subject)
+        }
+
+        if (course) {
+          if (!processedData.courses[subject]) {
+            processedData.courses[subject] = []
+          }
+          if (!processedData.courses[subject].includes(course)) {
+            processedData.courses[subject].push(course)
+          }
+        }
+      })
+
+      setAvailableSubjects(processedData)
+    } catch (error) {
+      console.error("Error in fetchSubjectsAndCourses:", error)
     }
-  }, [open])
+  }
 
   // Reset the state when the modal opens
   useEffect(() => {

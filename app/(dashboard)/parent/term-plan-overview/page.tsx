@@ -32,13 +32,12 @@ import {
   GoalsModal,
   ScheduleModal,
 } from "@/components/parent/term-plan-overview/edit-modals"
-import { getCurrentUser } from "@/lib/supabase"
+import { getCurrentUser, supabase } from "@/lib/supabase"
 import { useAuth } from "@/components/auth-provider"
 import { saveTermPlan } from "@/app/actions/save-term-plan"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { createClient } from "@supabase/supabase-js"
 import { CoursePlatformCard } from "@/components/parent/course-platform-card"
 import { PlatformThumbnail } from '@/components/parent/platform-thumbnail'
 import { useCoursePlatforms, getPlatformUrlForCourse, CoursePlatform } from '@/hooks/useCoursePlatforms'
@@ -149,30 +148,8 @@ const fetchFromSupabase = async (id: string, userId: string) => {
   try {
     console.log("Starting Supabase fetch for term plan:", { id, userId })
 
-    // Configure Supabase client with longer timeout
-    const supabaseWithTimeout = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-          detectSessionInUrl: true,
-        },
-        global: {
-          fetch: (...args) => {
-            const [url, config] = args
-            return fetch(url as string, {
-              ...config as RequestInit,
-              signal: AbortSignal.timeout(25000) // 25 second timeout at fetch level
-            })
-          }
-        }
-      }
-    )
-
     // Log current auth state
-    const { data: { session }, error: authError } = await supabaseWithTimeout.auth.getSession()
+    const { data: { session }, error: authError } = await supabase.auth.getSession()
     if (authError) {
       console.error("Error getting auth session:", authError)
       throw new Error(`Authentication error: ${authError.message}`)
@@ -181,7 +158,7 @@ const fetchFromSupabase = async (id: string, userId: string) => {
 
     // Fetch the term plan with detailed error logging
     console.log("Fetching term plan with query:", { id })
-    const { data: termPlanData, error: termPlanError } = await supabaseWithTimeout
+    const { data: termPlanData, error: termPlanError } = await supabase
       .from("term_plans")
       .select("*")
       .eq("id", id)
@@ -265,12 +242,6 @@ const fetchFromSupabase = async (id: string, userId: string) => {
     throw error
   }
 }
-
-// Create Supabase client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
 
 export default function TermPlanOverviewPage() {
   const { theme } = useTheme()
