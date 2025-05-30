@@ -1419,7 +1419,7 @@ export default function TermPlanOverviewPage() {
                               </div>
 
                               {courses.length > 0 ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <div className="space-y-6">
                                   {courses.map((course) => {
                                     // Find platform data for this course
                                     const platformData = coursePlatforms.find(p => 
@@ -1490,7 +1490,7 @@ export default function TermPlanOverviewPage() {
                               </div>
                               
                               {courses.length > 0 ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <div className="space-y-6">
                                   {courses.map((course) => {
                                     // Find platform data for this course
                                     const platformData = coursePlatforms.find(p => 
@@ -1656,7 +1656,7 @@ export default function TermPlanOverviewPage() {
                         {Object.entries(getSubjectsAndCourses(activeStudentId)).map(([subject, courses]) => (
                           <div key={subject} className="space-y-4">
                             <h4 className="text-md font-medium">{subject}</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                               {courses.map((course) => {
                                 // Find platform data for this course
                                 const platformData = coursePlatforms.find(p => 

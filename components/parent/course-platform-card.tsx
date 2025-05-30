@@ -10,7 +10,6 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/hooks/use-toast'
 import { supabase } from '@/lib/supabase'
-import OpenAI from 'openai'
 
 interface PlatformResult {
   id: number
@@ -30,11 +29,6 @@ interface CoursePlatformCardProps {
   parentId?: string
   studentId?: string
 }
-
-const openai = new OpenAI({
-  apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true
-})
 
 // Add learningStyle state at the top level
 let globalLearningStyle = 'hands-on activities'
@@ -514,6 +508,7 @@ export function CoursePlatformCard({
   const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false)
   const [promptGenerated, setPromptGenerated] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [lastGeneratedPrompt, setLastGeneratedPrompt] = useState<string | null>(null)
 
   // Load default platform URL if none provided
   useEffect(() => {
@@ -570,53 +565,85 @@ export function CoursePlatformCard({
   // Generate initial prompt when search opens
   useEffect(() => {
     if (showSearch && !promptGenerated && !isValidUrl(url)) {
+      console.log('🔄 Triggering initial prompt generation', {
+        showSearch,
+        promptGenerated,
+        url,
+        subject,
+        course
+      })
       generateInitialPrompt()
     }
   }, [showSearch, promptGenerated, url])
 
   const generateInitialPrompt = async () => {
+    console.log('🎯 Starting generateInitialPrompt', {
+      parentId,
+      subject,
+      course
+    })
+    
     try {
       setIsGeneratingPrompt(true)
       const prompt = await generatePersonalizedPrompt(parentId || '', subject, course)
-      console.log('Generated prompt:', prompt)
+      console.log('✨ Generated personalized prompt:', prompt)
       
-      const response = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages: [
-          {
-            role: "system",
-            content: "You are a helpful assistant that recommends educational platforms and resources for homeschooling families."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 500
+      // Store the generated prompt
+      setLastGeneratedPrompt(prompt)
+      setSearchQuery(prompt)
+      setPromptGenerated(true)
+      
+      console.log('📡 Making API request to /api/search-platforms')
+      const response = await fetch('/api/search-platforms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          searchQuery: prompt
+        })
       })
-
-      // Format educational goals with proper grammar
-      const formattedGoals = globalEducationalGoals.includes(',') 
-        ? globalEducationalGoals.replace(/,([^,]*)$/, ', and$1')
-        : globalEducationalGoals
-
-      const generatedPrompt = response.choices[0]?.message?.content || `Find me a ${subject} platform for a ${course} course that fits ${globalGradeLevel} who learns best through ${globalLearningStyle}. My goal is ${formattedGoals} at a ${globalOutcomeLevel}. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. ${globalBudgetText.replace('My budget is approximately', 'My budget limit is approximately')}`
       
-      console.log('Setting search query to:', generatedPrompt)
-      setSearchQuery(generatedPrompt)
-      setPromptGenerated(true)
+      console.log('📥 API response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      })
+      
+      const data = await response.json()
+      console.log('📦 API response data:', data)
+      
+      if (!response.ok) {
+        console.error('❌ API request failed:', {
+          status: response.status,
+          error: data.error
+        })
+        throw new Error(data.error || 'Failed to search platforms')
+      }
+      
+      if (!data.results || !Array.isArray(data.results)) {
+        console.error('❌ Invalid API response format:', data)
+        throw new Error('Invalid response format from server')
+      }
+      
+      console.log('✅ Setting search results:', data.results)
+      setSearchResults(data.results)
+      setShowResults(true)
     } catch (error) {
-      console.error('Error in generateInitialPrompt:', error)
-      // Format educational goals with proper grammar
-      const formattedGoals = globalEducationalGoals.includes(',') 
-        ? globalEducationalGoals.replace(/,([^,]*)$/, ', and$1')
-        : globalEducationalGoals
-
-      const fallbackPrompt = `Find me a ${subject} platform for a ${course} course that fits ${globalGradeLevel} who learns best through ${globalLearningStyle}. My goal is ${formattedGoals} at a ${globalOutcomeLevel}. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. ${globalBudgetText.replace('My budget is approximately', 'My budget limit is approximately')}`
-      console.log('Setting fallback search query:', fallbackPrompt)
-      setSearchQuery(fallbackPrompt)
-      setPromptGenerated(true)
+      console.error('💥 Error in generateInitialPrompt:', error)
+      
+      // Even if API call fails, keep the generated prompt visible
+      if (lastGeneratedPrompt) {
+        console.log('⚠️ Using last generated prompt:', lastGeneratedPrompt)
+        setSearchQuery(lastGeneratedPrompt)
+      } else {
+        // Generate a fallback prompt if no last prompt exists
+        const fallbackPrompt = await generatePersonalizedPrompt(parentId || '', subject, course)
+        console.log('⚠️ Using fallback prompt:', fallbackPrompt)
+        setSearchQuery(fallbackPrompt)
+      }
+      
+      setError(error instanceof Error ? error.message : 'An unexpected error occurred')
     } finally {
       setIsGeneratingPrompt(false)
     }
@@ -665,33 +692,70 @@ export function CoursePlatformCard({
 
   // Handle platform search using API
   const handleSearch = async () => {
+    console.log('🔍 Starting platform search', {
+      subject,
+      course,
+      parentId,
+      currentQuery: searchQuery
+    })
+    
     setIsSearching(true)
     setSearchResults([])
     setError(null)
 
     try {
-      // Format educational goals with proper grammar
-      const formattedGoals = globalEducationalGoals.includes(',') 
-        ? globalEducationalGoals.replace(/,([^,]*)$/, ', and$1')
-        : globalEducationalGoals
-
-      const prompt = `Find me a ${subject} platform for a ${course} course that fits ${globalGradeLevel} who learns best through ${globalLearningStyle}. My goal is ${formattedGoals} at a ${globalOutcomeLevel}. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. ${globalBudgetText.replace('My budget is approximately', 'My budget limit is approximately')}`
+      // Use existing search query if it exists, otherwise generate new one
+      const searchPrompt = searchQuery || await generatePersonalizedPrompt(parentId || '', subject, course)
+      console.log('✨ Using search prompt:', searchPrompt)
       
+      // Store the prompt being used
+      setLastGeneratedPrompt(searchPrompt)
+      setSearchQuery(searchPrompt)
+      
+      // Call the server-side API endpoint
+      console.log('📡 Making API request to /api/search-platforms')
       const response = await fetch('/api/search-platforms', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ searchQuery: prompt })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          searchQuery: searchPrompt
+        })
       })
+      
       const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to search platforms')
+      }
+      
+      if (!data.results || !Array.isArray(data.results)) {
+        throw new Error('Invalid response format from server')
+      }
+      
       setSearchResults(data.results)
       setShowResults(true)
+      
+      // If this was a mock response, show a notice
+      if (data.notice) {
+        console.log('ℹ️ Using mock data:', data.notice)
+      }
+      
     } catch (error) {
-      console.error('Error searching platforms:', error)
+      console.error('💥 Error searching platforms:', error)
+      setError(error instanceof Error ? error.message : 'An unexpected error occurred')
+      
+      // Keep the search query visible even if search fails
+      if (lastGeneratedPrompt) {
+        setSearchQuery(lastGeneratedPrompt)
+      }
+      
       setSearchResults(getFallbackResults())
       setShowResults(true)
+    } finally {
+      setIsSearching(false)
     }
-    
-    setIsSearching(false)
   }
 
   // Handle selecting a platform from search results
@@ -740,30 +804,37 @@ export function CoursePlatformCard({
         {showSearch && !isValidUrl(url) && (
           <div className="mt-3 p-4 bg-gray-700 rounded-lg border-t border-gray-600 transition-all duration-200">
             {/* Search Input Section */}
-            <div className="space-y-3">
+            <div className="space-y-4">
               <textarea
                 value={isGeneratingPrompt ? "Personalizing your search based on your preferences..." : searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 disabled={isGeneratingPrompt}
                 placeholder={isGeneratingPrompt ? "Generating personalized search..." : "What kind of platform are you looking for? (e.g., 'interactive Bible study for teens')"}
-                className={`w-full p-3 bg-gray-800 border border-gray-600 rounded text-white placeholder-gray-400 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isGeneratingPrompt ? 'animate-pulse' : ''}`}
-                rows={4}
+                className={`w-full p-4 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent min-h-[120px] ${isGeneratingPrompt ? 'animate-pulse' : ''}`}
+                rows={5}
               />
+              
+              {error && (
+                <div className="p-3 bg-red-900/20 border border-red-700 rounded text-red-200 text-sm">
+                  {error}
+                </div>
+              )}
+              
               <Button
                 onClick={handleSearch}
                 disabled={!searchQuery.trim() || isSearching || isGeneratingPrompt}
-                className="bg-blue-600 hover:bg-blue-700 text-white w-full transition-colors"
-                size="sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white w-full transition-colors py-6"
+                size="lg"
               >
                 {isSearching ? (
                   <>
-                    <Loader2 className="h-3 w-3 mr-2 animate-spin" />
-                    Searching...
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Searching for the Perfect Platform...
                   </>
                 ) : (
                   <>
-                    <Search className="h-3 w-3 mr-2" />
-                    Search Platforms
+                    <Search className="h-4 w-4 mr-2" />
+                    {searchResults.length > 0 ? 'Search Again' : 'Find Personalized Platform Recommendations'}
                   </>
                 )}
               </Button>
@@ -771,29 +842,102 @@ export function CoursePlatformCard({
 
             {/* Results Section */}
             {showResults && (
-              <div className="mt-4 space-y-2 transition-all duration-200">
-                <h4 className="text-sm font-medium text-white mb-2">Recommended Platforms:</h4>
-                {searchResults.map((result) => (
-                  <div 
-                    key={result.id} 
-                    className="p-3 bg-gray-800 rounded border border-gray-600 hover:border-blue-500/30 transition-all"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <h5 className="font-medium text-white text-sm">{result.name}</h5>
-                        <p className="text-gray-400 text-xs mt-1">{result.description}</p>
-                        <span className="text-green-400 text-xs mt-1 block">{result.price}</span>
+              <div className="mt-4 space-y-4 transition-all duration-200">
+                {/* Conversation Header */}
+                <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-600">
+                  <h4 className="text-sm font-medium text-white mb-2">AI Tutor Recommendations</h4>
+                  <p className="text-gray-300 text-sm">
+                    Based on your {globalGradeLevel} student who prefers {globalLearningStyle} learning approaches, here are my carefully selected recommendations for {subject} {course}:
+                  </p>
+                </div>
+
+                {/* Platform Recommendations */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {searchResults.map((result) => (
+                    <div 
+                      key={result.id} 
+                      className="p-4 bg-gray-800 rounded-lg border border-gray-600 hover:border-blue-500/30 transition-all"
+                    >
+                      <div className="space-y-3">
+                        {/* Platform Header */}
+                        <div className="flex justify-between items-start">
+                          <h5 className="font-medium text-white">{result.name}</h5>
+                          <span className="text-green-400 text-sm">{result.price}</span>
+                        </div>
+
+                        {/* Description */}
+                        <p className="text-gray-300 text-sm">{result.description}</p>
+
+                        {/* Pros and Cons */}
+                        <div className="grid grid-cols-2 gap-3 pt-2">
+                          <div>
+                            <h6 className="text-green-400 text-xs font-medium mb-1">Strengths</h6>
+                            <ul className="text-gray-300 text-xs space-y-1">
+                              <li>• Aligns with {globalLearningStyle} learning</li>
+                              <li>• Supports {globalOutcomeLevel} mastery</li>
+                              <li>• Fits {globalParentInvolvement} approach</li>
+                            </ul>
+                          </div>
+                          <div>
+                            <h6 className="text-yellow-400 text-xs font-medium mb-1">Considerations</h6>
+                            <ul className="text-gray-300 text-xs space-y-1">
+                              <li>• {result.price === "Free" ? "Limited advanced features" : "Requires subscription"}</li>
+                              <li>• May need initial setup time</li>
+                              <li>• Parent guidance recommended</li>
+                            </ul>
+                          </div>
+                        </div>
+
+                        {/* Why This Platform */}
+                        <div className="pt-2">
+                          <h6 className="text-blue-400 text-xs font-medium mb-1">Why This Platform</h6>
+                          <p className="text-gray-300 text-xs">
+                            This platform particularly excels for {globalGradeLevel} students focused on {subject}. 
+                            It aligns with your goals of {globalEducationalGoals} while maintaining {globalParentInvolvement}.
+                          </p>
+                        </div>
+
+                        {/* Action Button */}
+                        <div className="pt-3 flex justify-end">
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700 text-white text-xs"
+                            onClick={() => handleSelectPlatform(result)}
+                          >
+                            Select This Platform
+                          </Button>
+                        </div>
                       </div>
-                      <Button
-                        size="sm"
-                        className="bg-green-600 hover:bg-green-700 text-white ml-3 text-xs"
-                        onClick={() => handleSelectPlatform(result)}
-                      >
-                        Use This
-                      </Button>
                     </div>
+                  ))}
+                </div>
+
+                {/* Comparison Summary */}
+                <div className="mt-6 p-4 bg-gray-800/50 rounded-lg border border-gray-600">
+                  <h4 className="text-sm font-medium text-white mb-2">Platform Comparison Summary</h4>
+                  <p className="text-gray-300 text-sm mb-3">
+                    Here's how these platforms compare for your specific needs:
+                  </p>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="col-span-1 font-medium text-white">Feature</div>
+                    {searchResults.slice(0, 2).map((result) => (
+                      <div key={result.id} className="col-span-1 font-medium text-white">{result.name}</div>
+                    ))}
+                    {/* Comparison Rows */}
+                    <div className="col-span-1 text-gray-400">Price</div>
+                    {searchResults.slice(0, 2).map((result) => (
+                      <div key={result.id} className="col-span-1 text-gray-300">{result.price}</div>
+                    ))}
+                    <div className="col-span-1 text-gray-400">Learning Style</div>
+                    {searchResults.slice(0, 2).map((result) => (
+                      <div key={result.id} className="col-span-1 text-gray-300">{globalLearningStyle}</div>
+                    ))}
+                    <div className="col-span-1 text-gray-400">Parent Involvement</div>
+                    {searchResults.slice(0, 2).map((result) => (
+                      <div key={result.id} className="col-span-1 text-gray-300">{globalParentInvolvement}</div>
+                    ))}
                   </div>
-                ))}
+                </div>
               </div>
             )}
           </div>
