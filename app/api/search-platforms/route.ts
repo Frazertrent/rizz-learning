@@ -16,7 +16,20 @@ const EXAMPLE_JSON_RESPONSE = [
     "name": "Example Academy",
     "description": "A comprehensive learning platform with interactive content.",
     "price": "$19.99/month (Free trial available)",
-    "url": "https://example.com"
+    "url": "https://example.com",
+    "strengths": [
+      "Adaptive learning technology",
+      "Comprehensive progress tracking",
+      "Interactive content"
+    ],
+    "considerations": [
+      "Requires stable internet connection",
+      "Parent setup needed initially"
+    ],
+    "why_this_platform": "This platform is particularly well-suited for your child because it aligns with their visual learning style and allows for the moderate parent involvement you prefer. The self-paced nature supports your goal of early graduation while maintaining high academic standards.",
+    "age_range": "Grades 6-12",
+    "curriculum_focus": "STEM with emphasis on practical applications",
+    "budget_fit": "Within your $167/subject monthly budget"
   }
 ]
 
@@ -60,19 +73,64 @@ const MOCK_RESPONSES: Record<string, any[]> = {
       name: "Khan Academy",
       description: "Comprehensive online learning platform offering interactive exercises, instructional videos, and a personalized learning dashboard. Perfect for self-paced learning with detailed progress tracking.",
       price: "Free",
-      url: "https://www.khanacademy.org"
+      url: "https://www.khanacademy.org",
+      strengths: [
+        "Self-paced learning structure",
+        "Comprehensive video library",
+        "Interactive practice exercises",
+        "Detailed progress tracking"
+      ],
+      considerations: [
+        "Requires self-motivation",
+        "Internet connection needed",
+        "Limited teacher interaction"
+      ],
+      why_this_platform: "Khan Academy's self-paced structure and comprehensive coverage align perfectly with your goal of independent learning while maintaining high academic standards. The platform's detailed progress tracking helps maintain accountability.",
+      age_range: "K-12 and beyond",
+      curriculum_focus: "Core subjects with emphasis on STEM",
+      budget_fit: "Excellent fit - completely free platform"
     },
     {
       name: "IXL Learning",
       description: "Adaptive learning platform covering K-12 subjects with personalized guidance and analytics. Features comprehensive curriculum aligned with state standards.",
       price: "$19.95/month (Free trial available)",
-      url: "https://www.ixl.com"
+      url: "https://www.ixl.com",
+      strengths: [
+        "Adaptive technology",
+        "Comprehensive analytics",
+        "Standards-aligned content",
+        "Personalized learning path"
+      ],
+      considerations: [
+        "Monthly subscription cost",
+        "May require parent guidance",
+        "Best with regular practice"
+      ],
+      why_this_platform: "IXL's adaptive technology ensures your child is always working at the right level, while the analytics provide the oversight you need for moderate involvement. The structured approach supports academic excellence.",
+      age_range: "K-12",
+      curriculum_focus: "Core subjects with personalized adaptation",
+      budget_fit: "Well within the $167/month budget"
     },
     {
       name: "Outschool",
       description: "Live online classes and activities for K-12 learners. Offers unique, interest-based courses taught by experienced educators in small group settings.",
       price: "Classes start at $10 (Many free trial classes available)",
-      url: "https://outschool.com"
+      url: "https://outschool.com",
+      strengths: [
+        "Live teacher interaction",
+        "Small group settings",
+        "Interest-based learning",
+        "Flexible scheduling"
+      ],
+      considerations: [
+        "Requires scheduling coordination",
+        "Variable pricing per class",
+        "Class availability may vary"
+      ],
+      why_this_platform: "Outschool's live classes provide the structured learning environment you seek while allowing flexibility in scheduling. The small group format ensures personal attention while maintaining peer interaction.",
+      age_range: "Ages 3-18",
+      curriculum_focus: "Diverse subjects with interest-based approach",
+      budget_fit: "Variable cost, but can fit within $167/month budget with careful class selection"
     }
   ],
   math: [
@@ -210,16 +268,31 @@ export async function POST(request: NextRequest) {
         messages: [
           {
             role: "system",
-            content: `You are a JSON-only API that recommends educational platforms.
-IMPORTANT: You MUST respond with ONLY valid JSON array, no other text.
+            content: `You are a specialized educational platform recommendation API that provides detailed, personalized suggestions.
+IMPORTANT: 
+- Respond with ONLY valid JSON array
+- Return MAXIMUM 4 platforms
+- Each platform MUST have ALL fields from the example structure
+- Make recommendations specific to the user's needs
+- Consider the $167 per subject monthly budget
+- Ensure "why_this_platform" is unique and specific for each platform
+- Focus on value proposition and educational outcomes
+- Include clear budget analysis in recommendations
+
 The JSON must exactly match this structure:
 ${JSON.stringify(EXAMPLE_JSON_RESPONSE, null, 2)}
 
-Each platform object MUST have these exact fields:
+Required fields for each platform:
 - name: String (platform name)
 - description: String (2-3 sentences max)
 - price: String (with trial info if available)
 - url: String (main homepage URL)
+- strengths: Array of 3-5 key strengths
+- considerations: Array of 2-3 important considerations
+- why_this_platform: String (UNIQUE explanation for this specific case)
+- age_range: String (suitable grade/age range)
+- curriculum_focus: String (main educational focus)
+- budget_fit: String (analysis of cost vs budget)
 
 NO additional fields or explanatory text allowed.
 ONLY return the JSON array.`
@@ -228,16 +301,19 @@ ONLY return the JSON array.`
             role: "user",
             content: `Search: "${searchQuery}"
 
-Return exactly 3 educational platforms as JSON array.
+Return up to 4 educational platforms as JSON array.
 Remember:
 1. ONLY return the JSON array
 2. NO explanatory text
 3. Must match example structure exactly
-4. Must be valid JSON`
+4. Must be valid JSON
+5. Each platform must have a UNIQUE "why_this_platform" explanation
+6. Consider the $167/subject monthly budget limit
+7. Focus on educational outcomes and value`
           }
         ],
         temperature: 0.7,
-        max_tokens: 1000,
+        max_tokens: 1500,
       })
       
       const rawResponse = response.choices[0]?.message?.content
@@ -277,7 +353,13 @@ Remember:
         name: p.name,
         description: p.description,
         price: p.price,
-        url: p.url
+        url: p.url,
+        strengths: p.strengths || [],
+        considerations: p.considerations || [],
+        why_this_platform: p.why_this_platform || "",
+        age_range: p.age_range || "",
+        curriculum_focus: p.curriculum_focus || "",
+        budget_fit: p.budget_fit || ""
       }))
       
       return NextResponse.json({ results })

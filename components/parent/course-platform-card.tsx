@@ -17,6 +17,12 @@ interface PlatformResult {
   description: string
   price: string
   url: string
+  strengths: string[]
+  considerations: string[]
+  why_this_platform: string
+  age_range: string
+  curriculum_focus: string
+  budget_fit: string
 }
 
 interface CoursePlatformCardProps {
@@ -626,6 +632,39 @@ export function CoursePlatformCard({
         throw new Error('Invalid response format from server')
       }
       
+      // Validate that each result has all required fields
+      const validResults = data.results.every((result: PlatformResult) => 
+        result.name &&
+        result.description &&
+        result.price &&
+        result.url &&
+        Array.isArray(result.strengths) &&
+        Array.isArray(result.considerations) &&
+        result.why_this_platform &&
+        result.age_range &&
+        result.curriculum_focus &&
+        result.budget_fit
+      )
+      
+      if (!validResults) {
+        console.error('❌ Invalid result format - missing required fields')
+        throw new Error('Invalid result format - missing required fields')
+      }
+      
+      // Log the complete platform data
+      console.log('🎯 Platform data details:', {
+        count: data.results.length,
+        firstPlatform: data.results[0],
+        hasDetailedFields: data.results.every((p: PlatformResult) => 
+          p.strengths && 
+          p.considerations && 
+          p.why_this_platform && 
+          p.age_range && 
+          p.curriculum_focus && 
+          p.budget_fit
+        )
+      })
+      
       console.log('✅ Setting search results:', data.results)
       setSearchResults(data.results)
       setShowResults(true)
@@ -642,6 +681,12 @@ export function CoursePlatformCard({
         console.log('⚠️ Using fallback prompt:', fallbackPrompt)
         setSearchQuery(fallbackPrompt)
       }
+      
+      // Use fallback results with complete data structure
+      const fallbackResults = getFallbackResults()
+      console.log('⚠️ Using fallback results with complete data:', fallbackResults)
+      setSearchResults(fallbackResults)
+      setShowResults(true)
       
       setError(error instanceof Error ? error.message : 'An unexpected error occurred')
     } finally {
@@ -670,22 +715,50 @@ export function CoursePlatformCard({
       ? globalEducationalGoals.replace(/,([^,]*)$/, ', and$1')
       : globalEducationalGoals
 
-    const prompt = `Find me a ${subject} platform for a ${course} course that fits ${globalGradeLevel} who learns best through ${globalLearningStyle}. My goal is ${formattedGoals} at a ${globalOutcomeLevel}. I prefer structured independence with ${globalParentInvolvement} and value ${globalEducationalValues}. ${globalBudgetText.replace('My budget is approximately', 'My budget limit is approximately')}`
-    
     return [
       {
         id: 1,
         name: "Khan Academy",
         description: "Free comprehensive educational platform with structured courses and interactive exercises.",
         price: "Free",
-        url: "https://khanacademy.org"
+        url: "https://khanacademy.org",
+        strengths: [
+          "Self-paced learning structure",
+          "Comprehensive video library",
+          "Interactive practice exercises",
+          "Detailed progress tracking"
+        ],
+        considerations: [
+          "Requires self-motivation",
+          "Internet connection needed",
+          "Limited teacher interaction"
+        ],
+        why_this_platform: "Khan Academy's self-paced structure and comprehensive coverage align perfectly with your goal of independent learning while maintaining high academic standards. The platform's detailed progress tracking helps maintain accountability.",
+        age_range: "K-12 and beyond",
+        curriculum_focus: "Core subjects with emphasis on STEM",
+        budget_fit: "Excellent fit - completely free platform"
       },
       {
         id: 2,
         name: "IXL Learning",
         description: "Personalized learning platform with comprehensive curriculum and adaptive technology.",
         price: "$19.95/month",
-        url: "https://ixl.com"
+        url: "https://ixl.com",
+        strengths: [
+          "Adaptive technology",
+          "Comprehensive analytics",
+          "Standards-aligned content",
+          "Personalized learning path"
+        ],
+        considerations: [
+          "Monthly subscription cost",
+          "May require parent guidance",
+          "Best with regular practice"
+        ],
+        why_this_platform: "IXL's adaptive technology ensures your child is always working at the right level, while the analytics provide the oversight you need for moderate involvement. The structured approach supports academic excellence.",
+        age_range: "K-12",
+        curriculum_focus: "Core subjects with personalized adaptation",
+        budget_fit: "Well within your monthly budget"
       }
     ]
   }
@@ -725,6 +798,7 @@ export function CoursePlatformCard({
       })
       
       const data = await response.json()
+      console.log('📦 API response data:', data)
       
       if (!response.ok) {
         throw new Error(data.error || 'Failed to search platforms')
@@ -732,6 +806,25 @@ export function CoursePlatformCard({
       
       if (!data.results || !Array.isArray(data.results)) {
         throw new Error('Invalid response format from server')
+      }
+      
+      // Validate that each result has all required fields
+      const validResults = data.results.every((result: PlatformResult) => 
+        result.name &&
+        result.description &&
+        result.price &&
+        result.url &&
+        Array.isArray(result.strengths) &&
+        Array.isArray(result.considerations) &&
+        result.why_this_platform &&
+        result.age_range &&
+        result.curriculum_focus &&
+        result.budget_fit
+      )
+      
+      if (!validResults) {
+        console.error('❌ Invalid result format - missing required fields')
+        throw new Error('Invalid result format - missing required fields')
       }
       
       setSearchResults(data.results)
@@ -751,7 +844,10 @@ export function CoursePlatformCard({
         setSearchQuery(lastGeneratedPrompt)
       }
       
-      setSearchResults(getFallbackResults())
+      // Use fallback results with complete data structure
+      const fallbackResults = getFallbackResults()
+      console.log('⚠️ Using fallback results with complete data:', fallbackResults)
+      setSearchResults(fallbackResults)
       setShowResults(true)
     } finally {
       setIsSearching(false)
@@ -786,7 +882,7 @@ export function CoursePlatformCard({
               onClick={handleExternalLinkClick}
             >
               <ExternalLink className="h-3 w-3 mr-1" />
-              Visit Platform
+              Visit Site
             </Button>
           ) : (
             <Button
@@ -842,8 +938,8 @@ export function CoursePlatformCard({
 
             {/* Results Section */}
             {showResults && (
-              <div className="mt-4 space-y-4 transition-all duration-200">
-                {/* Conversation Header */}
+              <div className="space-y-6">
+                {/* Header */}
                 <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-600">
                   <h4 className="text-sm font-medium text-white mb-2">AI Tutor Recommendations</h4>
                   <p className="text-gray-300 text-sm">
@@ -851,93 +947,122 @@ export function CoursePlatformCard({
                   </p>
                 </div>
 
-                {/* Platform Recommendations */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {searchResults.map((result) => (
-                    <div 
-                      key={result.id} 
-                      className="p-4 bg-gray-800 rounded-lg border border-gray-600 hover:border-blue-500/30 transition-all"
-                    >
-                      <div className="space-y-3">
-                        {/* Platform Header */}
-                        <div className="flex justify-between items-start">
-                          <h5 className="font-medium text-white">{result.name}</h5>
-                          <span className="text-green-400 text-sm">{result.price}</span>
-                        </div>
-
-                        {/* Description */}
-                        <p className="text-gray-300 text-sm">{result.description}</p>
-
-                        {/* Pros and Cons */}
-                        <div className="grid grid-cols-2 gap-3 pt-2">
-                          <div>
-                            <h6 className="text-green-400 text-xs font-medium mb-1">Strengths</h6>
-                            <ul className="text-gray-300 text-xs space-y-1">
-                              <li>• Aligns with {globalLearningStyle} learning</li>
-                              <li>• Supports {globalOutcomeLevel} mastery</li>
-                              <li>• Fits {globalParentInvolvement} approach</li>
-                            </ul>
-                          </div>
-                          <div>
-                            <h6 className="text-yellow-400 text-xs font-medium mb-1">Considerations</h6>
-                            <ul className="text-gray-300 text-xs space-y-1">
-                              <li>• {result.price === "Free" ? "Limited advanced features" : "Requires subscription"}</li>
-                              <li>• May need initial setup time</li>
-                              <li>• Parent guidance recommended</li>
-                            </ul>
-                          </div>
-                        </div>
-
-                        {/* Why This Platform */}
-                        <div className="pt-2">
-                          <h6 className="text-blue-400 text-xs font-medium mb-1">Why This Platform</h6>
-                          <p className="text-gray-300 text-xs">
-                            This platform particularly excels for {globalGradeLevel} students focused on {subject}. 
-                            It aligns with your goals of {globalEducationalGoals} while maintaining {globalParentInvolvement}.
-                          </p>
-                        </div>
-
-                        {/* Action Button */}
-                        <div className="pt-3 flex justify-end">
-                          <Button
-                            size="sm"
-                            className="bg-green-600 hover:bg-green-700 text-white text-xs"
-                            onClick={() => handleSelectPlatform(result)}
-                          >
-                            Select This Platform
-                          </Button>
-                        </div>
+                {/* Platform Cards */}
+                {searchResults.map((result) => (
+                  <div 
+                    key={result.id} 
+                    className="mt-6 p-6 bg-gray-800 rounded-lg border border-gray-600 hover:border-blue-500/30 transition-all"
+                  >
+                    {/* Platform Header */}
+                    <div className="flex justify-between items-start border-b border-gray-700 pb-4">
+                      <div>
+                        <h5 className="font-medium text-white text-lg mb-1">{result.name}</h5>
+                        <p className="text-gray-400 text-sm">{result.curriculum_focus}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-green-400 text-sm font-medium block mb-1">{result.price}</span>
+                        <span className="text-gray-400 text-xs">{result.budget_fit}</span>
                       </div>
                     </div>
-                  ))}
-                </div>
 
-                {/* Comparison Summary */}
-                <div className="mt-6 p-4 bg-gray-800/50 rounded-lg border border-gray-600">
-                  <h4 className="text-sm font-medium text-white mb-2">Platform Comparison Summary</h4>
-                  <p className="text-gray-300 text-sm mb-3">
-                    Here's how these platforms compare for your specific needs:
-                  </p>
-                  <div className="grid grid-cols-3 gap-2 text-xs">
-                    <div className="col-span-1 font-medium text-white">Feature</div>
-                    {searchResults.slice(0, 2).map((result) => (
-                      <div key={result.id} className="col-span-1 font-medium text-white">{result.name}</div>
-                    ))}
-                    {/* Comparison Rows */}
-                    <div className="col-span-1 text-gray-400">Price</div>
-                    {searchResults.slice(0, 2).map((result) => (
-                      <div key={result.id} className="col-span-1 text-gray-300">{result.price}</div>
-                    ))}
-                    <div className="col-span-1 text-gray-400">Learning Style</div>
-                    {searchResults.slice(0, 2).map((result) => (
-                      <div key={result.id} className="col-span-1 text-gray-300">{globalLearningStyle}</div>
-                    ))}
-                    <div className="col-span-1 text-gray-400">Parent Involvement</div>
-                    {searchResults.slice(0, 2).map((result) => (
-                      <div key={result.id} className="col-span-1 text-gray-300">{globalParentInvolvement}</div>
-                    ))}
+                    {/* Description */}
+                    <div className="mt-4">
+                      <p className="text-gray-300 text-sm leading-relaxed">{result.description}</p>
+                    </div>
+
+                    {/* Why This Platform */}
+                    <div className="mt-4 bg-blue-900/20 border border-blue-700/30 rounded-lg p-4">
+                      <h6 className="text-blue-400 text-sm font-medium mb-2">Why This Platform</h6>
+                      <p className="text-gray-300 text-sm leading-relaxed">{result.why_this_platform}</p>
+                    </div>
+
+                    {/* Strengths and Considerations */}
+                    <div className="grid md:grid-cols-2 gap-4 mt-4">
+                      <div>
+                        <h6 className="text-green-400 text-sm font-medium mb-2">Key Strengths</h6>
+                        <ul className="text-gray-300 text-sm space-y-2">
+                          {result.strengths.map((strength, idx) => (
+                            <li key={idx} className="flex items-start">
+                              <span className="text-green-400 mr-2">•</span>
+                              <span>{strength}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <h6 className="text-yellow-400 text-sm font-medium mb-2">Considerations</h6>
+                        <ul className="text-gray-300 text-sm space-y-2">
+                          {result.considerations.map((consideration, idx) => (
+                            <li key={idx} className="flex items-start">
+                              <span className="text-yellow-400 mr-2">•</span>
+                              <span>{consideration}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+
+                    {/* Action Button */}
+                    <div className="mt-6 pt-4 border-t border-gray-700 flex justify-end">
+                      <Button
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        onClick={() => {
+                          handleSelectPlatform(result);
+                          window.open(result.url, "_blank", "noopener,noreferrer");
+                        }}
+                      >
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Visit Site
+                      </Button>
+                    </div>
                   </div>
-                </div>
+                ))}
+
+                {/* Comparison Table */}
+                {searchResults.length > 1 && (
+                  <div className="mt-8 p-6 bg-gray-800/50 rounded-lg border border-gray-600">
+                    <h4 className="text-lg font-medium text-white mb-4">Platform Comparison</h4>
+                    
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-gray-700">
+                            <th className="text-left py-3 text-gray-400 font-medium">Feature</th>
+                            {searchResults.map(result => (
+                              <th key={result.id} className="text-left py-3 text-white font-medium px-4">{result.name}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-700">
+                          <tr>
+                            <td className="py-3 text-gray-400">Price</td>
+                            {searchResults.map(result => (
+                              <td key={result.id} className="py-3 text-gray-300 px-4">{result.price}</td>
+                            ))}
+                          </tr>
+                          <tr>
+                            <td className="py-3 text-gray-400">Age Range</td>
+                            {searchResults.map(result => (
+                              <td key={result.id} className="py-3 text-gray-300 px-4">{result.age_range}</td>
+                            ))}
+                          </tr>
+                          <tr>
+                            <td className="py-3 text-gray-400">Focus</td>
+                            {searchResults.map(result => (
+                              <td key={result.id} className="py-3 text-gray-300 px-4">{result.curriculum_focus}</td>
+                            ))}
+                          </tr>
+                          <tr>
+                            <td className="py-3 text-gray-400">Budget Fit</td>
+                            {searchResults.map(result => (
+                              <td key={result.id} className="py-3 text-gray-300 px-4">{result.budget_fit}</td>
+                            ))}
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
