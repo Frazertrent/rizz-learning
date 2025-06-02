@@ -22,8 +22,8 @@ export default async function ProfileConfirmationPage({
 
   // Fetch parent profile
   const { data: parentProfile, error: parentError } = await supabase
-    .from("parent_profile")
-    .select("*")
+    .from("parent_intake_form")
+    .select()
     .eq("id", parentId)
     .single()
 

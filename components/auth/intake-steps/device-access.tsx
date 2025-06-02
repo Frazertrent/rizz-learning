@@ -5,26 +5,70 @@ import { CardContent, CardDescription, CardHeader, CardTitle } from "@/component
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Button } from "@/components/ui/button"
+import { CheckCircle, Loader2 } from "lucide-react"
 
-export function DeviceAccess({ formData, updateFormData }) {
-  const [devices, setDevices] = useState(formData.devices || [])
+interface DeviceAccessProps {
+  formData: {
+    devices?: string[];
+    taskDelivery?: string;
+  };
+  updateFormData: (data: any) => void;
+  editMode?: boolean;
+  onSave?: () => void;
+  isSaving?: boolean;
+  saveSuccess?: boolean;
+}
+
+export function DeviceAccess({ 
+  formData, 
+  updateFormData,
+  editMode,
+  onSave,
+  isSaving,
+  saveSuccess
+}: DeviceAccessProps) {
+  // Add detailed debugging logs
+  console.log('📋 DeviceAccess detailed debug:');
+  console.log('  - formData:', formData);
+  console.log('  - devices:', formData.devices);
+  console.log('  - taskDelivery:', formData.taskDelivery);
+
+  const [devices, setDevices] = useState<string[]>(formData.devices || [])
   const [taskDelivery, setTaskDelivery] = useState(formData.taskDelivery || "device")
   const [isInitialRender, setIsInitialRender] = useState(true)
 
+  console.log('  - local state:', {
+    devices,
+    taskDelivery
+  });
+
+  // Add effect to sync with incoming formData changes
   useEffect(() => {
-    // Skip the first render to avoid the infinite loop
+    if (formData) {
+      console.log('Updating local state from formData:', formData);
+      setDevices(formData.devices || []);
+      setTaskDelivery(formData.taskDelivery || "device");
+    }
+  }, [formData]);
+
+  // Effect for updating parent component
+  useEffect(() => {
     if (isInitialRender) {
       setIsInitialRender(false)
       return
     }
 
-    updateFormData({
+    const updatedData = {
       devices,
       taskDelivery,
-    })
+    };
+
+    console.log('Updating parent formData with:', updatedData);
+    updateFormData(updatedData)
   }, [devices, taskDelivery, updateFormData, isInitialRender])
 
-  const handleDeviceChange = (device) => {
+  const handleDeviceChange = (device: string) => {
     if (devices.includes(device)) {
       setDevices(devices.filter((d) => d !== device))
     } else {
@@ -90,6 +134,31 @@ export function DeviceAccess({ formData, updateFormData }) {
             </div>
           </RadioGroup>
         </div>
+
+        {editMode && (
+          <div className="flex justify-end space-x-2 pt-4 border-t border-gray-800">
+            {saveSuccess && (
+              <div className="flex items-center text-green-400 mr-4">
+                <CheckCircle className="w-5 h-5 mr-2" />
+                Changes saved
+              </div>
+            )}
+            <Button
+              onClick={onSave}
+              disabled={isSaving}
+              className="bg-blue-600 text-white hover:bg-blue-700"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
+            </Button>
+          </div>
+        )}
       </CardContent>
     </>
   )

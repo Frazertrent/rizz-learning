@@ -10,12 +10,48 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error("Missing Supabase environment variables")
 }
 
-// Create a single supabase client for the browser with timeout configuration
+// Create a single supabase client for the browser with improved auth configuration
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
+    storageKey: 'sb-auth-token',
+    storage: {
+      getItem: (key) => {
+        try {
+          if (typeof window === 'undefined') return null
+          const itemStr = localStorage.getItem(key)
+          if (!itemStr) return null
+          
+          const item = JSON.parse(itemStr)
+          return item
+        } catch (err) {
+          console.error('Error reading from localStorage:', err)
+          return null
+        }
+      },
+      setItem: (key, value) => {
+        try {
+          if (typeof window === 'undefined') return
+          localStorage.setItem(key, JSON.stringify(value))
+          // Also set a cookie for server-side auth
+          document.cookie = `sb-auth-token=${JSON.stringify(value)}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`
+        } catch (err) {
+          console.error('Error writing to localStorage:', err)
+        }
+      },
+      removeItem: (key) => {
+        try {
+          if (typeof window === 'undefined') return
+          localStorage.removeItem(key)
+          // Also remove the cookie
+          document.cookie = `sb-auth-token=; path=/; max-age=0; SameSite=Lax`
+        } catch (err) {
+          console.error('Error removing from localStorage:', err)
+        }
+      },
+    },
   },
   global: {
     headers: { 'x-application-name': 'homeschool-dashboard' },
@@ -54,10 +90,18 @@ export const createClientWithWarning = (...args: Parameters<typeof createClient>
 
 // Helper function to get the current user
 export async function getCurrentUser() {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  return user
+  try {
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser()
+    
+    if (error) throw error
+    return user
+  } catch (error) {
+    console.error("Error getting current user:", error)
+    return null
+  }
 }
 
 // Helper function to get students for a parent
@@ -130,40 +174,40 @@ export async function updateStudent(
 }
 
 // Helper function to get a parent profile
-export async function getParentProfile(parentId: string) {
+export async function getParentIntakeForm(parentId: string) {
   // Clean the parentId to ensure it's a valid UUID format
   const cleanParentId = parentId.replace(/[^a-fA-F0-9-]/g, "")
 
   const { data, error } = await supabase
-    .from("parent_profile")
+    .from("parent_intake_form")
     .select()
-    .match({ id: cleanParentId })
+    .match({ parent_id: cleanParentId })
     .single()
 
   if (error) {
-    console.error("Error fetching parent profile:", error)
+    console.error("Error fetching parent intake form:", error)
     return null
   }
 
   return data
 }
 
-// Helper function to create or update a parent profile
-export async function upsertParentProfile(
-  profileData: Database['public']['tables']['parent_profile']['Insert'] | Database['public']['tables']['parent_profile']['Update']
+// Helper function to create or update a parent intake form
+export async function upsertParentIntakeForm(
+  formData: Database['public']['tables']['parent_intake_form']['Insert'] | Database['public']['tables']['parent_intake_form']['Update']
 ) {
-  // Ensure the ID is clean if it exists in the profileData
-  if ('id' in profileData && profileData.id) {
-    profileData.id = profileData.id.replace(/[^a-fA-F0-9-]/g, "")
+  // Ensure the ID is clean if it exists in the formData
+  if ('id' in formData && formData.id) {
+    formData.id = formData.id.replace(/[^a-fA-F0-9-]/g, "")
   }
 
   const { data, error } = await supabase
-    .from("parent_profile")
-    .upsert([profileData])
+    .from("parent_intake_form")
+    .upsert(formData)
     .select()
 
   if (error) {
-    console.error("Error upserting parent profile:", error)
+    console.error("Error upserting parent intake form:", error)
     throw error
   }
 

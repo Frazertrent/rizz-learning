@@ -18,7 +18,7 @@ export function SupabaseConnectionTest() {
     setError(null)
     try {
       // Test the connection by making a simple query
-      const { data, error } = await supabase.from("parent_profile").select("id").limit(1)
+      const { data, error } = await supabase.from("parent_intake_form").select("id").limit(1)
 
       if (error) throw error
 

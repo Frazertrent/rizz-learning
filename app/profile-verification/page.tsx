@@ -14,8 +14,8 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey)
 async function ProfileVerificationContent({ id }: { id: string }) {
   // Fetch the parent profile
   const { data: parentProfile, error: parentError } = await supabase
-    .from("parent_profile")
-    .select("*")
+    .from("parent_intake_form")
+    .select()
     .eq("id", id)
     .single()
 

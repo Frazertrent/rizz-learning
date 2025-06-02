@@ -6,7 +6,11 @@ import { CheckCircle, Download, ArrowRight, Star } from "lucide-react"
 import { motion } from "framer-motion"
 import Link from "next/link"
 
-export function SummaryScreen({ formData }) {
+interface SummaryScreenProps {
+  formData: any; // We'll type this properly later
+}
+
+export function SummaryScreen({ formData }: SummaryScreenProps) {
   return (
     <div className="container mx-auto px-4 max-w-4xl py-8">
       <div className="mb-12 text-center">

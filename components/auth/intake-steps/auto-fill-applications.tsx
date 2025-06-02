@@ -8,9 +8,53 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
-import { PlusCircle, LockIcon, X } from "lucide-react"
+import { PlusCircle, LockIcon, X, CheckCircle } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
+
+interface ApplicationStudent {
+  name: string
+  dob: string
+  ssn: string
+  gradeLevel: string
+  citizenshipStatus: string
+  disability: string
+  disabilityOther?: string
+}
+
+interface AdditionalInfo {
+  raceEthnicity: string[]
+  languagesSpoken: string[]
+  parentEmployment: string
+  parentEmploymentOther: string
+  singleParent: boolean
+  militaryFamily: boolean
+  benefitPrograms: string[]
+  benefitProgramsOther: string
+  otherCircumstances: string
+  address?: string
+  district?: string
+  contactEmail?: string
+}
+
+interface ContactInfo {
+  address: string
+  district: string
+  contactEmail: string
+}
+
+interface AutoFillApplicationsData {
+  applicationStudents: ApplicationStudent[]
+  activeApplicationStudentIndex: number
+  additionalInfo: AdditionalInfo
+  contactInfo: ContactInfo
+  students?: { name: string; gradeLevel: string }[] // Optional, used for pre-population
+}
+
+interface AutoFillApplicationsProps {
+  formData: Partial<AutoFillApplicationsData>
+  updateFormData: (data: Partial<AutoFillApplicationsData>) => void
+}
 
 // Common languages for the typeahead
 const commonLanguages = [
@@ -31,13 +75,23 @@ const commonLanguages = [
   "Ukrainian",
 ]
 
-export function AutoFillApplications({ formData, updateFormData }) {
-  // Move initialization logic to useEffect to avoid setState during render
+export function AutoFillApplications({ formData, updateFormData }: AutoFillApplicationsProps) {
+  const [languageInput, setLanguageInput] = useState("")
+  const [showLanguageSuggestions, setShowLanguageSuggestions] = useState(false)
+  const [showSaveConfirmation, setShowSaveConfirmation] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+
+  // Initialize state and sync with incoming formData changes
   useEffect(() => {
+    console.log("AutoFillApplications: Incoming formData update", formData)
+
     // Initialize applicationStudents if empty
     if (!formData.applicationStudents || formData.applicationStudents.length === 0) {
+      console.log("AutoFillApplications: Initializing application students")
+      
       // Check if students array exists and has items
       if (formData.students && formData.students.length > 0) {
+        console.log("AutoFillApplications: Pre-populating from student profiles", formData.students)
         // Pre-populate application students from the student profiles
         const initialApplicationStudents = formData.students.map((student) => ({
           name: student.name || "",
@@ -48,13 +102,14 @@ export function AutoFillApplications({ formData, updateFormData }) {
           disability: "",
         }))
 
-        updateFormData({
+        updateFormDataWithSave({
           applicationStudents: initialApplicationStudents,
           activeApplicationStudentIndex: 0,
         })
       } else {
+        console.log("AutoFillApplications: Creating empty student")
         // If no students exist at all, create one empty student
-        updateFormData({
+        updateFormDataWithSave({
           applicationStudents: [
             {
               name: "",
@@ -72,7 +127,8 @@ export function AutoFillApplications({ formData, updateFormData }) {
 
     // Initialize additional fields if they don't exist
     if (!formData.additionalInfo) {
-      updateFormData({
+      console.log("AutoFillApplications: Initializing additional info")
+      updateFormDataWithSave({
         additionalInfo: {
           raceEthnicity: [],
           languagesSpoken: [],
@@ -86,11 +142,20 @@ export function AutoFillApplications({ formData, updateFormData }) {
         },
       })
     }
-  }, [formData, updateFormData])
+  }, [formData])
 
-  // Initialize state for language input
-  const [languageInput, setLanguageInput] = useState("")
-  const [showLanguageSuggestions, setShowLanguageSuggestions] = useState(false)
+  const updateFormDataWithSave = (data: Partial<AutoFillApplicationsData>) => {
+    console.log("AutoFillApplications: Updating form data with save", data)
+    setIsSaving(true)
+    const timer = setTimeout(() => {
+      updateFormData(data)
+      setIsSaving(false)
+      setShowSaveConfirmation(true)
+      setTimeout(() => setShowSaveConfirmation(false), 2000)
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }
 
   // Get filtered language suggestions
   const getFilteredLanguages = () => {
@@ -99,15 +164,24 @@ export function AutoFillApplications({ formData, updateFormData }) {
   }
 
   // Handle adding a custom language
-  const addLanguage = (language) => {
+  const addLanguage = (language: string) => {
+    console.log("AutoFillApplications: Adding language", language)
     if (!language.trim()) return
 
     const currentLanguages = formData.additionalInfo?.languagesSpoken || []
     if (!currentLanguages.includes(language)) {
-      updateFormData({
+      updateFormDataWithSave({
         additionalInfo: {
           ...formData.additionalInfo,
           languagesSpoken: [...currentLanguages, language],
+          raceEthnicity: formData.additionalInfo?.raceEthnicity || [],
+          parentEmployment: formData.additionalInfo?.parentEmployment || "",
+          parentEmploymentOther: formData.additionalInfo?.parentEmploymentOther || "",
+          singleParent: formData.additionalInfo?.singleParent || false,
+          militaryFamily: formData.additionalInfo?.militaryFamily || false,
+          benefitPrograms: formData.additionalInfo?.benefitPrograms || [],
+          benefitProgramsOther: formData.additionalInfo?.benefitProgramsOther || "",
+          otherCircumstances: formData.additionalInfo?.otherCircumstances || "",
         },
       })
     }
@@ -115,18 +189,28 @@ export function AutoFillApplications({ formData, updateFormData }) {
   }
 
   // Handle removing a language
-  const removeLanguage = (language) => {
+  const removeLanguage = (language: string) => {
+    console.log("AutoFillApplications: Removing language", language)
     const currentLanguages = formData.additionalInfo?.languagesSpoken || []
-    updateFormData({
+    updateFormDataWithSave({
       additionalInfo: {
         ...formData.additionalInfo,
         languagesSpoken: currentLanguages.filter((lang) => lang !== language),
+        raceEthnicity: formData.additionalInfo?.raceEthnicity || [],
+        parentEmployment: formData.additionalInfo?.parentEmployment || "",
+        parentEmploymentOther: formData.additionalInfo?.parentEmploymentOther || "",
+        singleParent: formData.additionalInfo?.singleParent || false,
+        militaryFamily: formData.additionalInfo?.militaryFamily || false,
+        benefitPrograms: formData.additionalInfo?.benefitPrograms || [],
+        benefitProgramsOther: formData.additionalInfo?.benefitProgramsOther || "",
+        otherCircumstances: formData.additionalInfo?.otherCircumstances || "",
       },
     })
   }
 
   // Handle race/ethnicity checkbox changes
-  const handleRaceEthnicityChange = (value) => {
+  const handleRaceEthnicityChange = (value: string) => {
+    console.log("AutoFillApplications: Handling race/ethnicity change", value)
     const currentSelections = formData.additionalInfo?.raceEthnicity || []
     let newSelections
 
@@ -136,16 +220,25 @@ export function AutoFillApplications({ formData, updateFormData }) {
       newSelections = [...currentSelections, value]
     }
 
-    updateFormData({
+    updateFormDataWithSave({
       additionalInfo: {
         ...formData.additionalInfo,
         raceEthnicity: newSelections,
+        languagesSpoken: formData.additionalInfo?.languagesSpoken || [],
+        parentEmployment: formData.additionalInfo?.parentEmployment || "",
+        parentEmploymentOther: formData.additionalInfo?.parentEmploymentOther || "",
+        singleParent: formData.additionalInfo?.singleParent || false,
+        militaryFamily: formData.additionalInfo?.militaryFamily || false,
+        benefitPrograms: formData.additionalInfo?.benefitPrograms || [],
+        benefitProgramsOther: formData.additionalInfo?.benefitProgramsOther || "",
+        otherCircumstances: formData.additionalInfo?.otherCircumstances || "",
       },
     })
   }
 
   // Handle benefit programs checkbox changes
-  const handleBenefitProgramsChange = (value) => {
+  const handleBenefitProgramsChange = (value: string) => {
+    console.log("AutoFillApplications: Handling benefit programs change", value)
     const currentSelections = formData.additionalInfo?.benefitPrograms || []
     let newSelections
 
@@ -155,39 +248,40 @@ export function AutoFillApplications({ formData, updateFormData }) {
       newSelections = [...currentSelections, value]
     }
 
-    updateFormData({
+    updateFormDataWithSave({
       additionalInfo: {
         ...formData.additionalInfo,
         benefitPrograms: newSelections,
+        raceEthnicity: formData.additionalInfo?.raceEthnicity || [],
+        languagesSpoken: formData.additionalInfo?.languagesSpoken || [],
+        parentEmployment: formData.additionalInfo?.parentEmployment || "",
+        parentEmploymentOther: formData.additionalInfo?.parentEmploymentOther || "",
+        singleParent: formData.additionalInfo?.singleParent || false,
+        militaryFamily: formData.additionalInfo?.militaryFamily || false,
+        benefitProgramsOther: formData.additionalInfo?.benefitProgramsOther || "",
+        otherCircumstances: formData.additionalInfo?.otherCircumstances || "",
       },
     })
   }
 
-  // Get active student
-  const activeStudent = formData.applicationStudents?.[formData.activeApplicationStudentIndex] || {
-    name: "",
-    dob: "",
-    ssn: "",
-    gradeLevel: "",
-    citizenshipStatus: "",
-    disability: "",
-    disabilityOther: "",
-  }
-
   // Update active student
-  const updateActiveStudent = (data) => {
-    if (!formData.applicationStudents) return
+  const updateActiveStudent = (data: Partial<ApplicationStudent>) => {
+    console.log("AutoFillApplications: Updating active student", data)
+    const students = formData.applicationStudents || []
+    if (students.length === 0) return
 
-    const updatedStudents = [...formData.applicationStudents]
-    updatedStudents[formData.activeApplicationStudentIndex] = {
-      ...updatedStudents[formData.activeApplicationStudentIndex],
+    const updatedStudents = [...students]
+    const activeIndex = formData.activeApplicationStudentIndex || 0
+    updatedStudents[activeIndex] = {
+      ...updatedStudents[activeIndex],
       ...data,
     }
-    updateFormData({ applicationStudents: updatedStudents })
+    updateFormDataWithSave({ applicationStudents: updatedStudents })
   }
 
   // Add new student
   const addNewStudent = () => {
+    console.log("AutoFillApplications: Adding new student")
     const newStudents = [
       ...(formData.applicationStudents || []),
       {
@@ -199,32 +293,219 @@ export function AutoFillApplications({ formData, updateFormData }) {
         disability: "",
       },
     ]
-    updateFormData({
+    updateFormDataWithSave({
       applicationStudents: newStudents,
       activeApplicationStudentIndex: newStudents.length - 1,
     })
   }
 
   // Remove student
-  const removeStudent = (index) => {
-    if (!formData.applicationStudents || formData.applicationStudents.length <= 1) return
+  const removeStudent = (index: number) => {
+    console.log("AutoFillApplications: Removing student at index", index)
+    const students = formData.applicationStudents || []
+    if (students.length <= 1) return
 
-    const newStudents = formData.applicationStudents.filter((_, i) => i !== index)
+    const newStudents = students.filter((_, i) => i !== index)
+    const currentActiveIndex = formData.activeApplicationStudentIndex || 0
     const newActiveIndex =
-      formData.activeApplicationStudentIndex >= index && formData.activeApplicationStudentIndex > 0
-        ? formData.activeApplicationStudentIndex - 1
-        : formData.activeApplicationStudentIndex
+      currentActiveIndex >= index && currentActiveIndex > 0
+        ? currentActiveIndex - 1
+        : currentActiveIndex
 
-    updateFormData({
+    updateFormDataWithSave({
       applicationStudents: newStudents,
       activeApplicationStudentIndex: Math.min(newActiveIndex, newStudents.length - 1),
     })
   }
 
   // Switch to student
-  const switchToStudent = (index) => {
-    updateFormData({ activeApplicationStudentIndex: index })
+  const switchToStudent = (index: number) => {
+    console.log("AutoFillApplications: Switching to student at index", index)
+    updateFormDataWithSave({ activeApplicationStudentIndex: index })
   }
+
+  // Handle parent employment change
+  const handleParentEmploymentChange = (value: string) => {
+    console.log("AutoFillApplications: Handling parent employment change", value)
+    updateFormDataWithSave({
+      additionalInfo: {
+        raceEthnicity: formData.additionalInfo?.raceEthnicity || [],
+        languagesSpoken: formData.additionalInfo?.languagesSpoken || [],
+        parentEmployment: value,
+        parentEmploymentOther: formData.additionalInfo?.parentEmploymentOther || "",
+        singleParent: formData.additionalInfo?.singleParent || false,
+        militaryFamily: formData.additionalInfo?.militaryFamily || false,
+        benefitPrograms: formData.additionalInfo?.benefitPrograms || [],
+        benefitProgramsOther: formData.additionalInfo?.benefitProgramsOther || "",
+        otherCircumstances: formData.additionalInfo?.otherCircumstances || "",
+      },
+    })
+  }
+
+  // Handle parent employment other change
+  const handleParentEmploymentOtherChange = (value: string) => {
+    console.log("AutoFillApplications: Handling parent employment other change", value)
+    const currentInfo = formData.additionalInfo || {
+      raceEthnicity: [],
+      languagesSpoken: [],
+      parentEmployment: "",
+      parentEmploymentOther: "",
+      singleParent: false,
+      militaryFamily: false,
+      benefitPrograms: [],
+      benefitProgramsOther: "",
+      otherCircumstances: "",
+    }
+
+    updateFormDataWithSave({
+      additionalInfo: {
+        ...currentInfo,
+        parentEmploymentOther: value,
+      },
+    })
+  }
+
+  // Handle single parent change
+  const handleSingleParentChange = (checked: boolean) => {
+    console.log("AutoFillApplications: Handling single parent change", checked)
+    updateFormDataWithSave({
+      additionalInfo: {
+        raceEthnicity: formData.additionalInfo?.raceEthnicity || [],
+        languagesSpoken: formData.additionalInfo?.languagesSpoken || [],
+        parentEmployment: formData.additionalInfo?.parentEmployment || "",
+        parentEmploymentOther: formData.additionalInfo?.parentEmploymentOther || "",
+        singleParent: checked,
+        militaryFamily: formData.additionalInfo?.militaryFamily || false,
+        benefitPrograms: formData.additionalInfo?.benefitPrograms || [],
+        benefitProgramsOther: formData.additionalInfo?.benefitProgramsOther || "",
+        otherCircumstances: formData.additionalInfo?.otherCircumstances || "",
+      },
+    })
+  }
+
+  // Handle military family change
+  const handleMilitaryFamilyChange = (checked: boolean) => {
+    console.log("AutoFillApplications: Handling military family change", checked)
+    updateFormDataWithSave({
+      additionalInfo: {
+        raceEthnicity: formData.additionalInfo?.raceEthnicity || [],
+        languagesSpoken: formData.additionalInfo?.languagesSpoken || [],
+        parentEmployment: formData.additionalInfo?.parentEmployment || "",
+        parentEmploymentOther: formData.additionalInfo?.parentEmploymentOther || "",
+        singleParent: formData.additionalInfo?.singleParent || false,
+        militaryFamily: checked,
+        benefitPrograms: formData.additionalInfo?.benefitPrograms || [],
+        benefitProgramsOther: formData.additionalInfo?.benefitProgramsOther || "",
+        otherCircumstances: formData.additionalInfo?.otherCircumstances || "",
+      },
+    })
+  }
+
+  // Handle benefit programs other change
+  const handleBenefitProgramsOtherChange = (value: string) => {
+    console.log("AutoFillApplications: Handling benefit programs other change", value)
+    const currentInfo = formData.additionalInfo || {
+      raceEthnicity: [],
+      languagesSpoken: [],
+      parentEmployment: "",
+      parentEmploymentOther: "",
+      singleParent: false,
+      militaryFamily: false,
+      benefitPrograms: [],
+      benefitProgramsOther: "",
+      otherCircumstances: "",
+    }
+
+    updateFormDataWithSave({
+      additionalInfo: {
+        ...currentInfo,
+        benefitProgramsOther: value,
+      },
+    })
+  }
+
+  // Handle other circumstances change
+  const handleOtherCircumstancesChange = (value: string) => {
+    console.log("AutoFillApplications: Handling other circumstances change", value)
+    const currentInfo = formData.additionalInfo || {
+      raceEthnicity: [],
+      languagesSpoken: [],
+      parentEmployment: "",
+      parentEmploymentOther: "",
+      singleParent: false,
+      militaryFamily: false,
+      benefitPrograms: [],
+      benefitProgramsOther: "",
+      otherCircumstances: "",
+    }
+
+    updateFormDataWithSave({
+      additionalInfo: {
+        ...currentInfo,
+        otherCircumstances: value,
+      },
+    })
+  }
+
+  // Get active student with safe array access
+  const getActiveStudent = (): ApplicationStudent => {
+    const students = formData.applicationStudents || []
+    const activeIndex = formData.activeApplicationStudentIndex || 0
+    if (activeIndex >= 0 && activeIndex < students.length) {
+      return students[activeIndex]
+    }
+    return {
+      name: "",
+      dob: "",
+      ssn: "",
+      gradeLevel: "",
+      citizenshipStatus: "",
+      disability: "",
+      disabilityOther: "",
+    }
+  }
+
+  // Initialize empty contact info
+  const emptyContactInfo: ContactInfo = {
+    address: "",
+    district: "",
+    contactEmail: "",
+  }
+
+  // Handle address change
+  const handleAddressChange = (value: string) => {
+    console.log("AutoFillApplications: Handling address change", value)
+    updateFormDataWithSave({
+      contactInfo: {
+        ...formData.contactInfo || emptyContactInfo,
+        address: value,
+      },
+    })
+  }
+
+  // Handle district change
+  const handleDistrictChange = (value: string) => {
+    console.log("AutoFillApplications: Handling district change", value)
+    updateFormDataWithSave({
+      contactInfo: {
+        ...formData.contactInfo || emptyContactInfo,
+        district: value,
+      },
+    })
+  }
+
+  // Handle contact email change
+  const handleContactEmailChange = (value: string) => {
+    console.log("AutoFillApplications: Handling contact email change", value)
+    updateFormDataWithSave({
+      contactInfo: {
+        ...formData.contactInfo || emptyContactInfo,
+        contactEmail: value,
+      },
+    })
+  }
+
+  const activeStudent = getActiveStudent()
 
   return (
     <>
@@ -237,64 +518,6 @@ export function AutoFillApplications({ formData, updateFormData }) {
       <CardContent className="space-y-6">
         <div className="p-3 bg-gray-800 rounded border border-gray-700 text-gray-300 text-sm">
           <p>All fields are optional. This information is only used to auto-fill official applications.</p>
-        </div>
-
-        <div className="space-y-4">
-          <h3 className="text-white text-lg font-medium">Parent Information</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="parent-name" className="text-gray-300">
-                Name:
-              </Label>
-              <Input
-                id="parent-name"
-                value={formData.parent?.name || ""}
-                onChange={(e) =>
-                  updateFormData({
-                    parent: { ...(formData.parent || {}), name: e.target.value },
-                  })
-                }
-                className="bg-gray-800 border-gray-700 text-white"
-                placeholder="Enter parent name"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="parent-email" className="text-gray-300">
-                Email:
-              </Label>
-              <Input
-                id="parent-email"
-                type="email"
-                value={formData.parent?.email || ""}
-                onChange={(e) =>
-                  updateFormData({
-                    parent: { ...(formData.parent || {}), email: e.target.value },
-                  })
-                }
-                className="bg-gray-800 border-gray-700 text-white"
-                placeholder="Enter parent email"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="parent-phone" className="text-gray-300">
-              Phone:
-            </Label>
-            <Input
-              id="parent-phone"
-              type="tel"
-              value={formData.parent?.phone || ""}
-              onChange={(e) =>
-                updateFormData({
-                  parent: { ...(formData.parent || {}), phone: e.target.value },
-                })
-              }
-              className="bg-gray-800 border-gray-700 text-white"
-              placeholder="Enter parent phone"
-            />
-          </div>
         </div>
 
         <div className="space-y-4">
@@ -491,8 +714,8 @@ export function AutoFillApplications({ formData, updateFormData }) {
             </Label>
             <Input
               id="address"
-              value={formData.address || ""}
-              onChange={(e) => updateFormData({ address: e.target.value })}
+              value={formData.contactInfo?.address || ""}
+              onChange={(e) => handleAddressChange(e.target.value)}
               className="bg-gray-800 border-gray-700 text-white"
               placeholder="Enter full address"
             />
@@ -505,8 +728,8 @@ export function AutoFillApplications({ formData, updateFormData }) {
               </Label>
               <Input
                 id="district"
-                value={formData.district || ""}
-                onChange={(e) => updateFormData({ district: e.target.value })}
+                value={formData.contactInfo?.district || ""}
+                onChange={(e) => handleDistrictChange(e.target.value)}
                 className="bg-gray-800 border-gray-700 text-white"
                 placeholder="Enter school district"
               />
@@ -519,8 +742,8 @@ export function AutoFillApplications({ formData, updateFormData }) {
               <Input
                 id="contact-email"
                 type="email"
-                value={formData.contactEmail || ""}
-                onChange={(e) => updateFormData({ contactEmail: e.target.value })}
+                value={formData.contactInfo?.contactEmail || ""}
+                onChange={(e) => handleContactEmailChange(e.target.value)}
                 className="bg-gray-800 border-gray-700 text-white"
                 placeholder="Enter preferred email"
               />
@@ -614,14 +837,7 @@ export function AutoFillApplications({ formData, updateFormData }) {
               </Label>
               <Select
                 value={formData.additionalInfo?.parentEmployment || ""}
-                onValueChange={(value) =>
-                  updateFormData({
-                    additionalInfo: {
-                      ...formData.additionalInfo,
-                      parentEmployment: value,
-                    },
-                  })
-                }
+                onValueChange={(value) => handleParentEmploymentChange(value)}
               >
                 <SelectTrigger id="parent-employment" className="bg-gray-800 border-gray-700 text-white">
                   <SelectValue placeholder="Select employment status" />
@@ -647,14 +863,7 @@ export function AutoFillApplications({ formData, updateFormData }) {
                 <Input
                   id="parent-employment-other"
                   value={formData.additionalInfo?.parentEmploymentOther || ""}
-                  onChange={(e) =>
-                    updateFormData({
-                      additionalInfo: {
-                        ...formData.additionalInfo,
-                        parentEmploymentOther: e.target.value,
-                      },
-                    })
-                  }
+                  onChange={(e) => handleParentEmploymentOtherChange(e.target.value)}
                   className="bg-gray-800 border-gray-700 text-white"
                   placeholder="Please specify"
                 />
@@ -667,14 +876,7 @@ export function AutoFillApplications({ formData, updateFormData }) {
               <Switch
                 id="single-parent"
                 checked={formData.additionalInfo?.singleParent || false}
-                onCheckedChange={(checked) =>
-                  updateFormData({
-                    additionalInfo: {
-                      ...formData.additionalInfo,
-                      singleParent: checked,
-                    },
-                  })
-                }
+                onCheckedChange={(checked) => handleSingleParentChange(checked)}
                 className="data-[state=checked]:bg-blue-600"
               />
               <Label htmlFor="single-parent" className="text-gray-300">
@@ -686,14 +888,7 @@ export function AutoFillApplications({ formData, updateFormData }) {
               <Switch
                 id="military-family"
                 checked={formData.additionalInfo?.militaryFamily || false}
-                onCheckedChange={(checked) =>
-                  updateFormData({
-                    additionalInfo: {
-                      ...formData.additionalInfo,
-                      militaryFamily: checked,
-                    },
-                  })
-                }
+                onCheckedChange={(checked) => handleMilitaryFamilyChange(checked)}
                 className="data-[state=checked]:bg-blue-600"
               />
               <Label htmlFor="military-family" className="text-gray-300">
@@ -738,14 +933,7 @@ export function AutoFillApplications({ formData, updateFormData }) {
               <Input
                 id="benefit-other"
                 value={formData.additionalInfo?.benefitProgramsOther || ""}
-                onChange={(e) =>
-                  updateFormData({
-                    additionalInfo: {
-                      ...formData.additionalInfo,
-                      benefitProgramsOther: e.target.value,
-                    },
-                  })
-                }
+                onChange={(e) => handleBenefitProgramsOtherChange(e.target.value)}
                 className="bg-gray-800 border-gray-700 text-white"
                 placeholder="Please specify"
               />
@@ -759,14 +947,7 @@ export function AutoFillApplications({ formData, updateFormData }) {
             <Textarea
               id="other-circumstances"
               value={formData.additionalInfo?.otherCircumstances || ""}
-              onChange={(e) =>
-                updateFormData({
-                  additionalInfo: {
-                    ...formData.additionalInfo,
-                    otherCircumstances: e.target.value,
-                  },
-                })
-              }
+              onChange={(e) => handleOtherCircumstancesChange(e.target.value)}
               className="bg-gray-800 border-gray-700 text-white min-h-[100px]"
               placeholder="Enter any additional information that might be relevant for applications (optional)"
             />
@@ -779,6 +960,16 @@ export function AutoFillApplications({ formData, updateFormData }) {
           </p>
         </div>
       </CardContent>
+      {showSaveConfirmation && (
+        <div className="fixed bottom-0 left-0 right-0 p-4">
+          <div className="bg-green-800 text-white p-4 rounded-t-lg">
+            <p className="text-center">
+              <CheckCircle className="inline-block mr-2" size={20} />
+              Application information saved successfully!
+            </p>
+          </div>
+        </div>
+      )}
     </>
   )
 }

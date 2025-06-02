@@ -230,13 +230,13 @@ export default function PlatformRecommendationPage() {
       setLoading(true)
       try {
         // Fetch parent profile data
-        const { data: parentProfile, error: parentError } = await supabase
-          .from("parent_profile")
-          .select("*")
+        const { data: parentProfile } = await supabase
+          .from("parent_intake_form")
+          .select()
           .eq("id", parentId)
           .single()
 
-        if (parentError) throw parentError
+        if (!parentProfile) throw new Error("Parent profile not found")
 
         // Fetch intake form data
         const { data: intakeForm, error: intakeError } = await supabase

@@ -6,8 +6,33 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { CheckCircle } from "lucide-react"
 
-export function BudgetGrants({ formData, updateFormData }) {
+interface Demographics {
+  raceEthnicity: string
+  citizenship: string
+  disability: string
+  language: string
+  other: string
+}
+
+interface BudgetGrantsData {
+  educationBudget: string
+  rewardBudget: string
+  checkForGrants: boolean
+  householdIncome: string
+  dependents: string
+  parentEducation: string
+  zipCode: string
+  demographics: Demographics
+}
+
+interface BudgetGrantsProps {
+  formData: Partial<BudgetGrantsData>
+  updateFormData: (data: Partial<BudgetGrantsData>) => void
+}
+
+export function BudgetGrants({ formData, updateFormData }: BudgetGrantsProps) {
   const [educationBudget, setEducationBudget] = useState(formData.educationBudget || "")
   const [rewardBudget, setRewardBudget] = useState(formData.rewardBudget || "")
   const [checkForGrants, setCheckForGrants] = useState(formData.checkForGrants || false)
@@ -15,7 +40,7 @@ export function BudgetGrants({ formData, updateFormData }) {
   const [dependents, setDependents] = useState(formData.dependents || "")
   const [parentEducation, setParentEducation] = useState(formData.parentEducation || "")
   const [zipCode, setZipCode] = useState(formData.zipCode || "")
-  const [demographics, setDemographics] = useState(
+  const [demographics, setDemographics] = useState<Demographics>(
     formData.demographics || {
       raceEthnicity: "",
       citizenship: "",
@@ -24,17 +49,27 @@ export function BudgetGrants({ formData, updateFormData }) {
       other: "",
     },
   )
+  const [showSaveConfirmation, setShowSaveConfirmation] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
-  const [isInitialRender, setIsInitialRender] = useState(true)
-
+  // Sync with incoming formData changes
   useEffect(() => {
-    // Skip the first render to avoid the infinite loop
-    if (isInitialRender) {
-      setIsInitialRender(false)
-      return
+    console.log("BudgetGrants: Incoming formData update", formData)
+    if (formData) {
+      if (formData.educationBudget !== undefined) setEducationBudget(formData.educationBudget)
+      if (formData.rewardBudget !== undefined) setRewardBudget(formData.rewardBudget)
+      if (formData.checkForGrants !== undefined) setCheckForGrants(formData.checkForGrants)
+      if (formData.householdIncome !== undefined) setHouseholdIncome(formData.householdIncome)
+      if (formData.dependents !== undefined) setDependents(formData.dependents)
+      if (formData.parentEducation !== undefined) setParentEducation(formData.parentEducation)
+      if (formData.zipCode !== undefined) setZipCode(formData.zipCode)
+      if (formData.demographics) setDemographics(formData.demographics)
     }
+  }, [formData])
 
-    updateFormData({
+  // Update parent form data when any value changes
+  useEffect(() => {
+    console.log("BudgetGrants: Updating parent with new data", {
       educationBudget,
       rewardBudget,
       checkForGrants,
@@ -44,6 +79,25 @@ export function BudgetGrants({ formData, updateFormData }) {
       zipCode,
       demographics,
     })
+
+    setIsSaving(true)
+    const timer = setTimeout(() => {
+      updateFormData({
+        educationBudget,
+        rewardBudget,
+        checkForGrants,
+        householdIncome,
+        dependents,
+        parentEducation,
+        zipCode,
+        demographics,
+      })
+      setIsSaving(false)
+      setShowSaveConfirmation(true)
+      setTimeout(() => setShowSaveConfirmation(false), 2000)
+    }, 500)
+
+    return () => clearTimeout(timer)
   }, [
     educationBudget,
     rewardBudget,
@@ -54,10 +108,10 @@ export function BudgetGrants({ formData, updateFormData }) {
     zipCode,
     demographics,
     updateFormData,
-    isInitialRender,
   ])
 
-  const handleDemographicChange = (field, value) => {
+  const handleDemographicChange = (field: keyof Demographics, value: string) => {
+    console.log("BudgetGrants: Handling demographic change", { field, value })
     setDemographics({
       ...demographics,
       [field]: value,
@@ -303,6 +357,16 @@ export function BudgetGrants({ formData, updateFormData }) {
           )}
         </div>
       </CardContent>
+      {showSaveConfirmation && (
+        <div className="fixed bottom-0 left-0 right-0 p-4">
+          <div className="bg-green-800 text-white p-4 rounded-t-lg">
+            <p className="text-center">
+              <CheckCircle className="inline-block mr-2" size={20} />
+              Budget and grant information saved successfully!
+            </p>
+          </div>
+        </div>
+      )}
     </>
   )
 }

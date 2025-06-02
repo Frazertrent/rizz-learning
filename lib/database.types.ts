@@ -3,43 +3,169 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export interface Database {
   public: {
     tables: {
-      parent_profile: {
+      parent_intake_form: {
         Row: {
           id: string
-          email: string
-          first_name: string | null
-          last_name: string | null
-          username: string | null
-          state: string | null
-          school_district: string | null
-          number_of_students: number | null
-          preferences_json: Json | null
+          parent_id: string
+          educational_goals: string[]
+          other_goal: string | null
+          target_gpa: Json | null
+          outcome_level: string | null
+          custom_outcome: string | null
+          home_percentage: number | null
+          subject_locations: Json | null
+          hybrid_options: string[] | null
+          other_hybrid_option: string | null
+          platforms: string[] | null
+          other_platform: string | null
+          want_recommendations: boolean | null
+          school_days: string[] | null
+          start_time: string | null
+          end_time: string | null
+          has_different_times: boolean | null
+          day_specific_times: Json | null
+          block_length: number | null
+          term_structure: string | null
+          term_length: number | null
+          term_unit: string | null
+          courses: Json[] | null
+          mentor_personality: string[] | null
+          other_personality: string | null
+          structure_preference: string | null
+          educational_values: string[] | null
+          other_value: string | null
+          extracurriculars: string[] | null
+          other_extracurricular: string | null
+          devices: string[] | null
+          task_delivery: string | null
+          parent_involvement: string | null
+          oversight_preferences: string[] | null
+          penalty_level: string | null
+          custom_penalties: Json | null
+          education_budget: string | null
+          reward_budget: string | null
+          check_for_grants: boolean | null
+          household_income: string | null
+          dependents: string | null
+          parent_education: string | null
+          zip_code: string | null
+          demographics: Json | null
+          parent_info: Json | null
+          application_students: Json[] | null
+          address: string | null
+          district: string | null
+          contact_email: string | null
+          completed: boolean
           created_at: string
           updated_at: string
         }
         Insert: {
-          id: string
-          email: string
-          first_name?: string | null
-          last_name?: string | null
-          username?: string | null
-          state?: string | null
-          school_district?: string | null
-          number_of_students?: number | null
-          preferences_json?: Json | null
+          id?: string
+          parent_id: string
+          educational_goals?: string[]
+          other_goal?: string | null
+          target_gpa?: Json | null
+          outcome_level?: string | null
+          custom_outcome?: string | null
+          home_percentage?: number | null
+          subject_locations?: Json | null
+          hybrid_options?: string[] | null
+          other_hybrid_option?: string | null
+          platforms?: string[] | null
+          other_platform?: string | null
+          want_recommendations?: boolean | null
+          school_days?: string[] | null
+          start_time?: string | null
+          end_time?: string | null
+          has_different_times?: boolean | null
+          day_specific_times?: Json | null
+          block_length?: number | null
+          term_structure?: string | null
+          term_length?: number | null
+          term_unit?: string | null
+          courses?: Json[] | null
+          mentor_personality?: string[] | null
+          other_personality?: string | null
+          structure_preference?: string | null
+          educational_values?: string[] | null
+          other_value?: string | null
+          extracurriculars?: string[] | null
+          other_extracurricular?: string | null
+          devices?: string[] | null
+          task_delivery?: string | null
+          parent_involvement?: string | null
+          oversight_preferences?: string[] | null
+          penalty_level?: string | null
+          custom_penalties?: Json | null
+          education_budget?: string | null
+          reward_budget?: string | null
+          check_for_grants?: boolean | null
+          household_income?: string | null
+          dependents?: string | null
+          parent_education?: string | null
+          zip_code?: string | null
+          demographics?: Json | null
+          parent_info?: Json | null
+          application_students?: Json[] | null
+          address?: string | null
+          district?: string | null
+          contact_email?: string | null
+          completed?: boolean
           created_at?: string
           updated_at?: string
         }
         Update: {
           id?: string
-          email?: string
-          first_name?: string | null
-          last_name?: string | null
-          username?: string | null
-          state?: string | null
-          school_district?: string | null
-          number_of_students?: number | null
-          preferences_json?: Json | null
+          parent_id?: string
+          educational_goals?: string[]
+          other_goal?: string | null
+          target_gpa?: Json | null
+          outcome_level?: string | null
+          custom_outcome?: string | null
+          home_percentage?: number | null
+          subject_locations?: Json | null
+          hybrid_options?: string[] | null
+          other_hybrid_option?: string | null
+          platforms?: string[] | null
+          other_platform?: string | null
+          want_recommendations?: boolean | null
+          school_days?: string[] | null
+          start_time?: string | null
+          end_time?: string | null
+          has_different_times?: boolean | null
+          day_specific_times?: Json | null
+          block_length?: number | null
+          term_structure?: string | null
+          term_length?: number | null
+          term_unit?: string | null
+          courses?: Json[] | null
+          mentor_personality?: string[] | null
+          other_personality?: string | null
+          structure_preference?: string | null
+          educational_values?: string[] | null
+          other_value?: string | null
+          extracurriculars?: string[] | null
+          other_extracurricular?: string | null
+          devices?: string[] | null
+          task_delivery?: string | null
+          parent_involvement?: string | null
+          oversight_preferences?: string[] | null
+          penalty_level?: string | null
+          custom_penalties?: Json | null
+          education_budget?: string | null
+          reward_budget?: string | null
+          check_for_grants?: boolean | null
+          household_income?: string | null
+          dependents?: string | null
+          parent_education?: string | null
+          zip_code?: string | null
+          demographics?: Json | null
+          parent_info?: Json | null
+          application_students?: Json[] | null
+          address?: string | null
+          district?: string | null
+          contact_email?: string | null
+          completed?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -129,7 +255,6 @@ export interface Database {
           created_at?: string
         }
       }
-      // Add other tables as needed
     }
     Views: {
       [_ in never]: never

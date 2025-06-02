@@ -6,28 +6,76 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Button } from "@/components/ui/button"
+import { CheckCircle, Loader2 } from "lucide-react"
 
-export function ProgramTools({ formData, updateFormData }) {
-  const [platforms, setPlatforms] = useState(formData.platforms || [])
+interface ProgramToolsProps {
+  formData: {
+    platforms?: string[];
+    otherPlatform?: string;
+    wantRecommendations?: boolean;
+  };
+  updateFormData: (data: any) => void;
+  editMode?: boolean;
+  onSave?: () => void;
+  isSaving?: boolean;
+  saveSuccess?: boolean;
+}
+
+export function ProgramTools({ 
+  formData, 
+  updateFormData,
+  editMode,
+  onSave,
+  isSaving,
+  saveSuccess
+}: ProgramToolsProps) {
+  // Add detailed debugging logs
+  console.log('📋 ProgramTools detailed debug:');
+  console.log('  - formData:', formData);
+  console.log('  - platforms:', formData.platforms);
+  console.log('  - otherPlatform:', formData.otherPlatform);
+  console.log('  - wantRecommendations:', formData.wantRecommendations);
+
+  const [platforms, setPlatforms] = useState<string[]>(formData.platforms || [])
   const [otherPlatform, setOtherPlatform] = useState(formData.otherPlatform || "")
   const [wantRecommendations, setWantRecommendations] = useState(formData.wantRecommendations !== false)
   const [isInitialRender, setIsInitialRender] = useState(true)
 
+  console.log('  - local state:', {
+    platforms,
+    otherPlatform,
+    wantRecommendations
+  });
+
+  // Add effect to sync with incoming formData changes
   useEffect(() => {
-    // Skip the first render to avoid the infinite loop
+    if (formData) {
+      console.log('Updating local state from formData:', formData);
+      setPlatforms(formData.platforms || []);
+      setOtherPlatform(formData.otherPlatform || "");
+      setWantRecommendations(formData.wantRecommendations !== false);
+    }
+  }, [formData]);
+
+  // Effect for updating parent component
+  useEffect(() => {
     if (isInitialRender) {
       setIsInitialRender(false)
       return
     }
 
-    updateFormData({
+    const updatedData = {
       platforms,
       otherPlatform,
       wantRecommendations,
-    })
+    };
+
+    console.log('Updating parent formData with:', updatedData);
+    updateFormData(updatedData)
   }, [platforms, otherPlatform, wantRecommendations, updateFormData, isInitialRender])
 
-  const handlePlatformChange = (platform) => {
+  const handlePlatformChange = (platform: string) => {
     if (platforms.includes(platform)) {
       setPlatforms(platforms.filter((p) => p !== platform))
     } else {
@@ -110,6 +158,31 @@ export function ProgramTools({ formData, updateFormData }) {
             </div>
           </RadioGroup>
         </div>
+
+        {editMode && (
+          <div className="flex justify-end space-x-2 pt-4 border-t border-gray-800">
+            {saveSuccess && (
+              <div className="flex items-center text-green-400 mr-4">
+                <CheckCircle className="w-5 h-5 mr-2" />
+                Changes saved
+              </div>
+            )}
+            <Button
+              onClick={onSave}
+              disabled={isSaving}
+              className="bg-blue-600 text-white hover:bg-blue-700"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
+            </Button>
+          </div>
+        )}
       </CardContent>
     </>
   )

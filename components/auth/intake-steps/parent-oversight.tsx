@@ -5,26 +5,70 @@ import { CardContent, CardDescription, CardHeader, CardTitle } from "@/component
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Button } from "@/components/ui/button"
+import { CheckCircle, Loader2 } from "lucide-react"
 
-export function ParentOversight({ formData, updateFormData }) {
+interface ParentOversightProps {
+  formData: {
+    parentInvolvement?: string;
+    oversightPreferences?: string[];
+  };
+  updateFormData: (data: any) => void;
+  editMode?: boolean;
+  onSave?: () => void;
+  isSaving?: boolean;
+  saveSuccess?: boolean;
+}
+
+export function ParentOversight({ 
+  formData, 
+  updateFormData,
+  editMode,
+  onSave,
+  isSaving,
+  saveSuccess
+}: ParentOversightProps) {
+  // Add detailed debugging logs
+  console.log('📋 ParentOversight detailed debug:');
+  console.log('  - formData:', formData);
+  console.log('  - parentInvolvement:', formData.parentInvolvement);
+  console.log('  - oversightPreferences:', formData.oversightPreferences);
+
   const [involvement, setInvolvement] = useState(formData.parentInvolvement || "active")
-  const [preferences, setPreferences] = useState(formData.oversightPreferences || [])
+  const [preferences, setPreferences] = useState<string[]>(formData.oversightPreferences || [])
   const [isInitialRender, setIsInitialRender] = useState(true)
 
+  console.log('  - local state:', {
+    involvement,
+    preferences
+  });
+
+  // Add effect to sync with incoming formData changes
   useEffect(() => {
-    // Skip the first render to avoid the infinite loop
+    if (formData) {
+      console.log('Updating local state from formData:', formData);
+      setInvolvement(formData.parentInvolvement || "active");
+      setPreferences(formData.oversightPreferences || []);
+    }
+  }, [formData]);
+
+  // Effect for updating parent component
+  useEffect(() => {
     if (isInitialRender) {
       setIsInitialRender(false)
       return
     }
 
-    updateFormData({
+    const updatedData = {
       parentInvolvement: involvement,
       oversightPreferences: preferences,
-    })
+    };
+
+    console.log('Updating parent formData with:', updatedData);
+    updateFormData(updatedData)
   }, [involvement, preferences, updateFormData, isInitialRender])
 
-  const handlePreferenceChange = (preference) => {
+  const handlePreferenceChange = (preference: string) => {
     if (preferences.includes(preference)) {
       setPreferences(preferences.filter((p) => p !== preference))
     } else {
@@ -94,6 +138,31 @@ export function ParentOversight({ formData, updateFormData }) {
             ))}
           </div>
         </div>
+
+        {editMode && (
+          <div className="flex justify-end space-x-2 pt-4 border-t border-gray-800">
+            {saveSuccess && (
+              <div className="flex items-center text-green-400 mr-4">
+                <CheckCircle className="w-5 h-5 mr-2" />
+                Changes saved
+              </div>
+            )}
+            <Button
+              onClick={onSave}
+              disabled={isSaving}
+              className="bg-blue-600 text-white hover:bg-blue-700"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
+            </Button>
+          </div>
+        )}
       </CardContent>
     </>
   )

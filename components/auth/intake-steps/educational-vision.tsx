@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
@@ -8,85 +8,102 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 
-export function EducationalVision({ formData, updateFormData }) {
+interface EducationalVisionProps {
+  formData: {
+    educationalGoals?: string[];
+    otherGoal?: string;
+    targetGpa?: {
+      hasPreference: boolean;
+      value: number;
+    };
+    outcomeLevel?: string;
+    customOutcome?: string;
+  };
+  updateFormData: (data: any) => void;
+  editMode?: boolean;
+}
+
+export function EducationalVision({ formData, updateFormData, editMode }: EducationalVisionProps) {
+  // Add detailed debugging logs
+  console.log('📋 EducationalVision detailed debug:');
+  console.log('  - formData:', formData);
+  console.log('  - educationalGoals:', formData.educationalGoals);
+  console.log('  - targetGpa:', formData.targetGpa);
+  console.log('  - outcomeLevel:', formData.outcomeLevel);
+
   const [goals, setGoals] = useState(formData.educationalGoals || [])
   const [otherGoal, setOtherGoal] = useState(formData.otherGoal || "")
   const [hasGpaPreference, setHasGpaPreference] = useState(formData.targetGpa?.hasPreference || false)
   const [gpaValue, setGpaValue] = useState(formData.targetGpa?.value || 3.5)
   const [outcomeLevel, setOutcomeLevel] = useState(formData.outcomeLevel || "proficient")
   const [customOutcome, setCustomOutcome] = useState(formData.customOutcome || "")
+  const [isInitialRender, setIsInitialRender] = useState(true)
 
-  // Handle changes manually instead of using useEffect
-  const handleGoalChange = (goal) => {
-    const newGoals = goals.includes(goal) ? goals.filter((g) => g !== goal) : [...goals, goal]
+  console.log('  - local state:', {
+    goals,
+    otherGoal,
+    hasGpaPreference,
+    gpaValue,
+    outcomeLevel,
+    customOutcome
+  });
 
-    setGoals(newGoals)
-    updateFormData({
-      educationalGoals: newGoals,
-      otherGoal,
-      targetGpa: { hasPreference: hasGpaPreference, value: gpaValue },
-      outcomeLevel,
-      customOutcome,
-    })
-  }
+  // Add effect to sync with incoming formData changes
+  useEffect(() => {
+    if (formData) {
+      console.log('Updating local state from formData:', formData);
+      setGoals(formData.educationalGoals || []);
+      setOtherGoal(formData.otherGoal || "");
+      setHasGpaPreference(formData.targetGpa?.hasPreference || false);
+      setGpaValue(formData.targetGpa?.value || 3.5);
+      setOutcomeLevel(formData.outcomeLevel || "proficient");
+      setCustomOutcome(formData.customOutcome || "");
+    }
+  }, [formData]);
 
-  const handleOtherGoalChange = (e) => {
-    const newValue = e.target.value
-    setOtherGoal(newValue)
-    updateFormData({
-      educationalGoals: goals,
-      otherGoal: newValue,
-      targetGpa: { hasPreference: hasGpaPreference, value: gpaValue },
-      outcomeLevel,
-      customOutcome,
-    })
-  }
+  // Effect for updating parent component
+  useEffect(() => {
+    console.log('EducationalVision useEffect - values changed');
+    if (isInitialRender) {
+      setIsInitialRender(false)
+      return
+    }
 
-  const handleGpaPreferenceChange = (value) => {
-    const newValue = value === "yes"
-    setHasGpaPreference(newValue)
-    updateFormData({
-      educationalGoals: goals,
-      otherGoal,
-      targetGpa: { hasPreference: newValue, value: gpaValue },
-      outcomeLevel,
-      customOutcome,
-    })
-  }
-
-  const handleGpaValueChange = (e) => {
-    const newValue = Number.parseFloat(e.target.value)
-    setGpaValue(newValue)
-    updateFormData({
-      educationalGoals: goals,
-      otherGoal,
-      targetGpa: { hasPreference: hasGpaPreference, value: newValue },
-      outcomeLevel,
-      customOutcome,
-    })
-  }
-
-  const handleOutcomeLevelChange = (value) => {
-    setOutcomeLevel(value)
-    updateFormData({
-      educationalGoals: goals,
-      otherGoal,
-      targetGpa: { hasPreference: hasGpaPreference, value: gpaValue },
-      outcomeLevel: value,
-      customOutcome,
-    })
-  }
-
-  const handleCustomOutcomeChange = (e) => {
-    const newValue = e.target.value
-    setCustomOutcome(newValue)
-    updateFormData({
+    const updatedData = {
       educationalGoals: goals,
       otherGoal,
       targetGpa: { hasPreference: hasGpaPreference, value: gpaValue },
       outcomeLevel,
-      customOutcome: newValue,
-    })
+      customOutcome,
+    };
+
+    console.log('Updating parent formData with:', updatedData);
+    updateFormData(updatedData);
+  }, [goals, otherGoal, hasGpaPreference, gpaValue, outcomeLevel, customOutcome, updateFormData, isInitialRender]);
+
+  const handleGoalChange = (goal: string) => {
+    const newGoals = goals.includes(goal) ? goals.filter((g) => g !== goal) : [...goals, goal];
+    setGoals(newGoals);
+  }
+
+  const handleOtherGoalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setOtherGoal(e.target.value);
+  }
+
+  const handleGpaPreferenceChange = (value: string) => {
+    setHasGpaPreference(value === "yes");
+  }
+
+  const handleGpaValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setGpaValue(Number.parseFloat(e.target.value));
+  }
+
+  const handleOutcomeLevelChange = (value: string) => {
+    setOutcomeLevel(value);
+  }
+
+  const handleCustomOutcomeChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setCustomOutcome(e.target.value);
   }
 
   return (

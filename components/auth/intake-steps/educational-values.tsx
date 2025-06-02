@@ -6,28 +6,94 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Button } from "@/components/ui/button"
+import { CheckCircle, Loader2 } from "lucide-react"
 
-export function EducationalValues({ formData, updateFormData }) {
+interface EducationalValuesProps {
+  formData: {
+    structurePreference?: string;
+    educationalValues?: string[];
+    otherValue?: string;
+    religiousAffiliation?: string;
+    religiousImportance?: string;
+  };
+  updateFormData: (data: any) => void;
+  editMode?: boolean;
+  onSave?: () => void;
+  isSaving?: boolean;
+  saveSuccess?: boolean;
+}
+
+export function EducationalValues({ 
+  formData, 
+  updateFormData, 
+  editMode,
+  onSave,
+  isSaving,
+  saveSuccess 
+}: EducationalValuesProps) {
+  // Add detailed debugging logs
+  console.log('📋 EducationalValues detailed debug:');
+  console.log('  - formData:', formData);
+  console.log('  - structurePreference:', formData.structurePreference);
+  console.log('  - educationalValues:', formData.educationalValues);
+  console.log('  - religiousAffiliation:', formData.religiousAffiliation);
+  console.log('  - religiousImportance:', formData.religiousImportance);
+
   const [structurePreference, setStructurePreference] = useState(formData.structurePreference || "balance")
-  const [values, setValues] = useState(formData.educationalValues || [])
+  const [values, setValues] = useState<string[]>(formData.educationalValues || [])
   const [otherValue, setOtherValue] = useState(formData.otherValue || "")
+  const [religiousAffiliation, setReligiousAffiliation] = useState(formData.religiousAffiliation || "")
+  const [religiousImportance, setReligiousImportance] = useState(formData.religiousImportance || "")
   const [isInitialRender, setIsInitialRender] = useState(true)
 
+  console.log('  - local state:', {
+    structurePreference,
+    values,
+    otherValue,
+    religiousAffiliation,
+    religiousImportance
+  });
+
+  // Add effect to sync with incoming formData changes
   useEffect(() => {
+    if (formData) {
+      console.log('Updating local state from formData:', formData);
+      setStructurePreference(formData.structurePreference || "balance");
+      setValues(formData.educationalValues || []);
+      setOtherValue(formData.otherValue || "");
+      setReligiousAffiliation(formData.religiousAffiliation || "");
+      setReligiousImportance(formData.religiousImportance || "");
+    }
+  }, [formData]);
+
+  // Effect for updating parent component
+  useEffect(() => {
+    console.log('EducationalValues useEffect - values changed');
     // Skip the first render to avoid the infinite loop
     if (isInitialRender) {
       setIsInitialRender(false)
       return
     }
 
+    console.log('Updating parent formData with:', {
+      structurePreference,
+      educationalValues: values,
+      otherValue,
+      religiousAffiliation,
+      religiousImportance,
+    });
+
     updateFormData({
       structurePreference,
       educationalValues: values,
       otherValue,
+      religiousAffiliation,
+      religiousImportance,
     })
-  }, [structurePreference, values, otherValue, updateFormData, isInitialRender])
+  }, [structurePreference, values, otherValue, religiousAffiliation, religiousImportance, updateFormData, isInitialRender])
 
-  const handleValueChange = (value) => {
+  const handleValueChange = (value: string) => {
     if (values.includes(value)) {
       setValues(values.filter((v) => v !== value))
     } else {
@@ -114,6 +180,87 @@ export function EducationalValues({ formData, updateFormData }) {
             </div>
           )}
         </div>
+
+        <div className="space-y-4">
+          <Label className="text-white text-lg">Religious Affiliation Preference</Label>
+          <RadioGroup value={religiousAffiliation} onValueChange={setReligiousAffiliation} className="space-y-2">
+            {[
+              "Secular",
+              "Christian",
+              "Catholic",
+              "Jewish",
+              "Islamic",
+              "LDS",
+              "Other",
+              "No Preference"
+            ].map((option) => (
+              <div key={option} className="flex items-center space-x-2">
+                <RadioGroupItem 
+                  value={option.toLowerCase()} 
+                  id={`religion-${option.toLowerCase()}`}
+                  className="border-gray-600 text-blue-600"
+                />
+                <Label 
+                  htmlFor={`religion-${option.toLowerCase()}`} 
+                  className="text-gray-300"
+                >
+                  {option}
+                </Label>
+              </div>
+            ))}
+          </RadioGroup>
+        </div>
+
+        <div className="space-y-4">
+          <Label className="text-white text-lg">How important is religious affiliation?</Label>
+          <RadioGroup value={religiousImportance} onValueChange={setReligiousImportance} className="space-y-2">
+            {[
+              "Required",
+              "Preferred",
+              "Neutral",
+              "Avoid"
+            ].map((option) => (
+              <div key={option} className="flex items-center space-x-2">
+                <RadioGroupItem 
+                  value={option.toLowerCase()} 
+                  id={`importance-${option.toLowerCase()}`}
+                  className="border-gray-600 text-blue-600"
+                />
+                <Label 
+                  htmlFor={`importance-${option.toLowerCase()}`} 
+                  className="text-gray-300"
+                >
+                  {option}
+                </Label>
+              </div>
+            ))}
+          </RadioGroup>
+        </div>
+
+        {editMode && (
+          <div className="flex justify-end space-x-2 pt-4 border-t border-gray-800">
+            {saveSuccess && (
+              <div className="flex items-center text-green-400 mr-4">
+                <CheckCircle className="w-5 h-5 mr-2" />
+                Changes saved
+              </div>
+            )}
+            <Button
+              onClick={onSave}
+              disabled={isSaving}
+              className="bg-blue-600 text-white hover:bg-blue-700"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
+            </Button>
+          </div>
+        )}
       </CardContent>
     </>
   )

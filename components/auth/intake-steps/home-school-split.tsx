@@ -7,10 +7,52 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
+import { Button } from "@/components/ui/button"
+import { CheckCircle, Loader2 } from "lucide-react"
 
-export function HomeSchoolSplit({ formData, updateFormData }) {
+interface SubjectLocations {
+  math: string;
+  science: string;
+  languageArts: string;
+  history: string;
+  pe: string;
+  art: string;
+  music: string;
+  cte: string;
+  foreignLanguage: string;
+}
+
+interface HomeSchoolSplitProps {
+  formData: {
+    homePercentage?: number;
+    subjectLocations?: SubjectLocations;
+    hybridOptions?: string[];
+    otherHybridOption?: string;
+  };
+  updateFormData: (data: any) => void;
+  editMode?: boolean;
+  onSave?: () => void;
+  isSaving?: boolean;
+  saveSuccess?: boolean;
+}
+
+export function HomeSchoolSplit({ 
+  formData, 
+  updateFormData, 
+  editMode,
+  onSave,
+  isSaving,
+  saveSuccess 
+}: HomeSchoolSplitProps) {
+  // Add detailed debugging logs
+  console.log('📋 HomeSchoolSplit detailed debug:');
+  console.log('  - formData:', formData);
+  console.log('  - homePercentage:', formData.homePercentage);
+  console.log('  - subjectLocations:', formData.subjectLocations);
+  console.log('  - hybridOptions:', formData.hybridOptions);
+
   const [homePercentage, setHomePercentage] = useState(formData.homePercentage || 100)
-  const [subjectLocations, setSubjectLocations] = useState(
+  const [subjectLocations, setSubjectLocations] = useState<SubjectLocations>(
     formData.subjectLocations || {
       math: "home",
       science: "home",
@@ -23,34 +65,65 @@ export function HomeSchoolSplit({ formData, updateFormData }) {
       foreignLanguage: "home",
     },
   )
-  const [hybridOptions, setHybridOptions] = useState(formData.hybridOptions || [])
+  const [hybridOptions, setHybridOptions] = useState<string[]>(formData.hybridOptions || [])
   const [otherHybridOption, setOtherHybridOption] = useState(formData.otherHybridOption || "")
-
   const [isInitialRender, setIsInitialRender] = useState(true)
 
+  console.log('  - local state:', {
+    homePercentage,
+    subjectLocations,
+    hybridOptions,
+    otherHybridOption
+  });
+
+  // Add effect to sync with incoming formData changes
   useEffect(() => {
-    // Skip the first render to avoid the infinite loop
+    if (formData) {
+      console.log('Updating local state from formData:', formData);
+      setHomePercentage(formData.homePercentage || 100);
+      setSubjectLocations(formData.subjectLocations || {
+        math: "home",
+        science: "home",
+        languageArts: "home",
+        history: "home",
+        pe: "home",
+        art: "home",
+        music: "home",
+        cte: "home",
+        foreignLanguage: "home",
+      });
+      setHybridOptions(formData.hybridOptions || []);
+      setOtherHybridOption(formData.otherHybridOption || "");
+    }
+  }, [formData]);
+
+  // Effect for updating parent component
+  useEffect(() => {
+    console.log('HomeSchoolSplit useEffect - values changed');
     if (isInitialRender) {
       setIsInitialRender(false)
       return
     }
 
-    updateFormData({
+    const updatedData = {
       homePercentage,
       subjectLocations,
       hybridOptions,
       otherHybridOption,
-    })
+    };
+
+    console.log('Updating parent formData with:', updatedData);
+    updateFormData(updatedData);
   }, [homePercentage, subjectLocations, hybridOptions, otherHybridOption, updateFormData, isInitialRender])
 
-  const handleSubjectLocationChange = (subject, location) => {
-    setSubjectLocations({
-      ...subjectLocations,
+  const handleSubjectLocationChange = (subject: keyof SubjectLocations, location: string) => {
+    setSubjectLocations(prev => ({
+      ...prev,
       [subject]: location,
-    })
+    }))
   }
 
-  const handleHybridOptionChange = (option) => {
+  const handleHybridOptionChange = (option: string) => {
     if (hybridOptions.includes(option)) {
       setHybridOptions(hybridOptions.filter((o) => o !== option))
     } else {
@@ -94,10 +167,10 @@ export function HomeSchoolSplit({ formData, updateFormData }) {
               <Label className="text-white text-lg">Core Academic Subjects</Label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
-                  { id: "math", label: "Math" },
-                  { id: "science", label: "Science" },
-                  { id: "languageArts", label: "Language Arts" },
-                  { id: "history", label: "History / Social Studies" },
+                  { id: "math" as const, label: "Math" },
+                  { id: "science" as const, label: "Science" },
+                  { id: "languageArts" as const, label: "Language Arts" },
+                  { id: "history" as const, label: "History / Social Studies" },
                 ].map((subject) => (
                   <div key={subject.id} className="space-y-1">
                     <Label htmlFor={subject.id} className="text-gray-300">
@@ -125,11 +198,11 @@ export function HomeSchoolSplit({ formData, updateFormData }) {
               <Label className="text-white text-lg">Electives & Special Courses</Label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
-                  { id: "pe", label: "PE / Fitness" },
-                  { id: "art", label: "Art / Drama" },
-                  { id: "music", label: "Music / Band / Choir" },
-                  { id: "cte", label: "Career & Technical Education" },
-                  { id: "foreignLanguage", label: "Foreign Language" },
+                  { id: "pe" as const, label: "PE / Fitness" },
+                  { id: "art" as const, label: "Art / Drama" },
+                  { id: "music" as const, label: "Music / Band / Choir" },
+                  { id: "cte" as const, label: "Career & Technical Education" },
+                  { id: "foreignLanguage" as const, label: "Foreign Language" },
                 ].map((subject) => (
                   <div key={subject.id} className="space-y-1">
                     <Label htmlFor={subject.id} className="text-gray-300">
@@ -193,6 +266,31 @@ export function HomeSchoolSplit({ formData, updateFormData }) {
               )}
             </div>
           </>
+        )}
+
+        {editMode && (
+          <div className="flex justify-end space-x-2 pt-4 border-t border-gray-800">
+            {saveSuccess && (
+              <div className="flex items-center text-green-400 mr-4">
+                <CheckCircle className="w-5 h-5 mr-2" />
+                Changes saved
+              </div>
+            )}
+            <Button
+              onClick={onSave}
+              disabled={isSaving}
+              className="bg-blue-600 text-white hover:bg-blue-700"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
+            </Button>
+          </div>
         )}
       </CardContent>
     </>

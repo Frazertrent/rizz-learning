@@ -38,13 +38,11 @@ export default function CurriculumRecommendationsPage() {
       setLoading(true)
       try {
         // Fetch parent profile data
-        const { data: parentProfile, error: parentError } = await supabase
-          .from("parent_profile")
-          .select("*")
+        const { data: parentProfile } = await supabase
+          .from("parent_intake_form")
+          .select()
           .eq("id", parentId)
           .single()
-
-        if (parentError) throw parentError
 
         // Fetch intake form data
         const { data: intakeForm, error: intakeError } = await supabase

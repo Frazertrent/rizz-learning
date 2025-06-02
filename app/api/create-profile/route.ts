@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     // Create parent profile
     const parentId = uuidv4()
 
-    const { error: parentError } = await supabase.from("parent_profile").insert({
+    const { error: parentError } = await supabase.from("parent_intake_form").insert({
       id: parentId,
       email: parentProfile.email,
       utah_affiliation: parentProfile.state === "Utah" ? "Yes" : "No",

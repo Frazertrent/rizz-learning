@@ -5,26 +5,70 @@ import { CardContent, CardDescription, CardHeader, CardTitle } from "@/component
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { CheckCircle, Loader2 } from "lucide-react"
 
-export function Extracurriculars({ formData, updateFormData }) {
-  const [extracurriculars, setExtracurriculars] = useState(formData.extracurriculars || [])
+interface ExtracurricularsProps {
+  formData: {
+    extracurriculars?: string[];
+    otherExtracurricular?: string;
+  };
+  updateFormData: (data: any) => void;
+  editMode?: boolean;
+  onSave?: () => void;
+  isSaving?: boolean;
+  saveSuccess?: boolean;
+}
+
+export function Extracurriculars({ 
+  formData, 
+  updateFormData,
+  editMode,
+  onSave,
+  isSaving,
+  saveSuccess
+}: ExtracurricularsProps) {
+  // Add detailed debugging logs
+  console.log('📋 Extracurriculars detailed debug:');
+  console.log('  - formData:', formData);
+  console.log('  - extracurriculars:', formData.extracurriculars);
+  console.log('  - otherExtracurricular:', formData.otherExtracurricular);
+
+  const [extracurriculars, setExtracurriculars] = useState<string[]>(formData.extracurriculars || [])
   const [otherExtracurricular, setOtherExtracurricular] = useState(formData.otherExtracurricular || "")
   const [isInitialRender, setIsInitialRender] = useState(true)
 
+  console.log('  - local state:', {
+    extracurriculars,
+    otherExtracurricular
+  });
+
+  // Add effect to sync with incoming formData changes
   useEffect(() => {
-    // Skip the first render to avoid the infinite loop
+    if (formData) {
+      console.log('Updating local state from formData:', formData);
+      setExtracurriculars(formData.extracurriculars || []);
+      setOtherExtracurricular(formData.otherExtracurricular || "");
+    }
+  }, [formData]);
+
+  // Effect for updating parent component
+  useEffect(() => {
     if (isInitialRender) {
       setIsInitialRender(false)
       return
     }
 
-    updateFormData({
+    const updatedData = {
       extracurriculars,
       otherExtracurricular,
-    })
+    };
+
+    console.log('Updating parent formData with:', updatedData);
+    updateFormData(updatedData)
   }, [extracurriculars, otherExtracurricular, updateFormData, isInitialRender])
 
-  const handleExtracurricularChange = (activity) => {
+  const handleExtracurricularChange = (activity: string) => {
     if (extracurriculars.includes(activity)) {
       setExtracurriculars(extracurriculars.filter((e) => e !== activity))
     } else {
@@ -83,6 +127,31 @@ export function Extracurriculars({ formData, updateFormData }) {
             </div>
           )}
         </div>
+
+        {editMode && (
+          <div className="flex justify-end space-x-2 pt-4 border-t border-gray-800">
+            {saveSuccess && (
+              <div className="flex items-center text-green-400 mr-4">
+                <CheckCircle className="w-5 h-5 mr-2" />
+                Changes saved
+              </div>
+            )}
+            <Button
+              onClick={onSave}
+              disabled={isSaving}
+              className="bg-blue-600 text-white hover:bg-blue-700"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
+            </Button>
+          </div>
+        )}
       </CardContent>
     </>
   )

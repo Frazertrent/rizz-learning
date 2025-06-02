@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { checkTableSchema } from "@/app/actions/check-schema"
 
 export function SchemaChecker() {
-  const [tableName, setTableName] = useState("parent_profile")
+  const [tableName, setTableName] = useState("parent_intake_form")
   const [schema, setSchema] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)

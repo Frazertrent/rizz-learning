@@ -15,7 +15,7 @@ type User = {
 type AuthContextType = {
   user: User | null
   login: (email: string, password: string) => Promise<void>
-  logout: () => void
+  logout: () => Promise<void>
   isLoading: boolean
   checkSession: () => Promise<User | null>
 }
@@ -31,7 +31,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const {
         data: { session },
+        error: sessionError,
       } = await supabase.auth.getSession()
+
+      if (sessionError) {
+        throw sessionError
+      }
 
       if (session?.user) {
         // Determine role based on email for demo purposes
@@ -54,31 +59,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         setUser(newUser)
-
-        // Store in localStorage for persistence
-        localStorage.setItem("user", JSON.stringify(newUser))
-
-        // Refresh the session to extend it
-        await supabase.auth.refreshSession()
-
         return newUser
-      } else {
-        // Fallback to stored user if needed
-        const storedUser = localStorage.getItem("user")
-        if (storedUser) {
-          const parsedUser = JSON.parse(storedUser)
-          setUser(parsedUser)
-
-          // Try to refresh the session if we have a stored user
-          try {
-            await supabase.auth.refreshSession()
-          } catch (refreshError) {
-            console.warn("Could not refresh session:", refreshError)
-          }
-
-          return parsedUser
-        }
       }
+
       return null
     } catch (error) {
       console.error("Session check error:", error)
@@ -86,7 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Check for existing session on initial load
+  // Initialize auth state
   useEffect(() => {
     const initAuth = async () => {
       setIsLoading(true)
@@ -121,20 +104,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         setUser(newUser)
-        localStorage.setItem("user", JSON.stringify(newUser))
-
-        // Also store the user ID separately for easier access
-        localStorage.setItem("userId", session.user.id)
-
-        // Set a cookie for the user ID to help with server-side auth
-        document.cookie = `userId=${session.user.id}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`
       } else if (event === "SIGNED_OUT") {
         setUser(null)
-        localStorage.removeItem("user")
-        localStorage.removeItem("userId")
-
-        // Clear the userId cookie
-        document.cookie = "userId=; path=/; max-age=0; SameSite=Lax"
+      } else if (event === "TOKEN_REFRESHED") {
+        // Session was refreshed, update the user state
+        await checkSession()
       }
     })
 
@@ -173,7 +147,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       setUser(user)
-      localStorage.setItem("user", JSON.stringify(user))
     } catch (error) {
       console.error("Login error:", error)
       throw error
@@ -184,16 +157,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      await supabase.auth.signOut()
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+      
       setUser(null)
-      localStorage.removeItem("user")
     } catch (error) {
       console.error("Logout error:", error)
+      throw error
     }
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isLoading, checkSession }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, login, logout, isLoading, checkSession }}>
+      {children}
+    </AuthContext.Provider>
   )
 }
 

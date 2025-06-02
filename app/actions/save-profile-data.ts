@@ -69,7 +69,7 @@ export async function saveProfileData(parentProfile: ParentProfile, studentProfi
 
     // Check if a parent profile with this ID already exists
     const { data: existingProfile, error: fetchError } = await supabaseServer
-      .from("parent_profile")
+      .from("parent_intake_form")
       .select("*")
       .eq("id", userId)
       .single()
@@ -82,7 +82,7 @@ export async function saveProfileData(parentProfile: ParentProfile, studentProfi
     // If the profile exists, update it instead of inserting
     if (existingProfile) {
       const { error: updateError } = await supabaseServer
-        .from("parent_profile")
+        .from("parent_intake_form")
         .update({
           email: parentProfile.email,
           first_name: parentProfile.firstName,
@@ -104,7 +104,7 @@ export async function saveProfileData(parentProfile: ParentProfile, studentProfi
       }
     } else {
       // Create a new parent profile
-      const { error: parentError } = await supabaseServer.from("parent_profile").insert({
+      const { error: parentError } = await supabaseServer.from("parent_intake_form").insert({
         id: userId,
         email: parentProfile.email,
         first_name: parentProfile.firstName,

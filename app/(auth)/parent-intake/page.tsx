@@ -2,13 +2,16 @@
 
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { ParentIntakeForm } from "@/components/auth/parent-intake-form"
 
 export default function ParentIntakePage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const step = searchParams.get("step")
+  const edit = searchParams.get("edit")
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -28,18 +31,18 @@ export default function ParentIntakePage() {
         } else {
           console.log("User is not authenticated, redirecting to login")
           // Use router.push instead of window.location for smoother transition
-          router.push("/login?redirect=/parent-intake")
+          router.push(`/login?redirect=/parent-intake${step ? `?step=${step}&edit=${edit}` : ""}`)
         }
       } catch (error) {
         console.error("Error checking authentication:", error)
-        router.push("/login?redirect=/parent-intake")
+        router.push(`/login?redirect=/parent-intake${step ? `?step=${step}&edit=${edit}` : ""}`)
       } finally {
         setIsLoading(false)
       }
     }
 
     checkAuth()
-  }, [router])
+  }, [router, step, edit])
 
   if (isLoading) {
     return (

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
@@ -24,6 +24,9 @@ import {
   Users,
   Bell,
   FileText,
+  ClipboardEdit,
+  FileSpreadsheet,
+  Loader2,
 } from "lucide-react"
 import {
   Dialog,
@@ -37,11 +40,35 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useToast } from "@/hooks/use-toast"
 import { Textarea } from "@/components/ui/textarea"
+import { useRouter } from "next/navigation"
+import { supabase } from "@/lib/supabase"
+
+// Add these interfaces at the top of the file after imports
+interface ParentIntakeForm {
+  id: string
+  parent_id: string
+  created_at: string
+  updated_at: string
+  // Add other form fields as needed
+}
+
+interface FileEvent extends React.ChangeEvent<HTMLInputElement> {
+  target: HTMLInputElement & {
+    files: FileList
+  }
+}
+
+interface PasswordChangeEvent extends React.ChangeEvent<HTMLInputElement> {
+  target: HTMLInputElement & {
+    id: string
+    value: string
+  }
+}
 
 export function Settings() {
   const [activeTab, setActiveTab] = useState("account")
-  const [avatarFile, setAvatarFile] = useState(null)
-  const [avatarPreview, setAvatarPreview] = useState(null)
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [passwordFields, setPasswordFields] = useState({
     current: "",
@@ -49,15 +76,18 @@ export function Settings() {
     confirm: "",
   })
   const [passwordError, setPasswordError] = useState("")
+  const [intakeFormData, setIntakeFormData] = useState<ParentIntakeForm | null>(null)
+  const [isLoadingForm, setIsLoadingForm] = useState(true)
   const { toast } = useToast()
+  const router = useRouter()
 
-  const handleAvatarChange = (e) => {
+  const handleAvatarChange = (e: FileEvent) => {
     const file = e.target.files[0]
     if (file) {
       setAvatarFile(file)
       const reader = new FileReader()
       reader.onloadend = () => {
-        setAvatarPreview(reader.result)
+        setAvatarPreview(reader.result as string)
       }
       reader.readAsDataURL(file)
 
@@ -71,7 +101,7 @@ export function Settings() {
 
   const handleSaveProfile = () => {
     toast({
-      title: "��� Profile updated!",
+      title: "Profile updated!",
       description: "Your profile information has been saved successfully.",
       variant: "default",
       className:
@@ -79,7 +109,7 @@ export function Settings() {
     })
   }
 
-  const handlePasswordChange = (e) => {
+  const handlePasswordChange = (e: PasswordChangeEvent) => {
     const { id, value } = e.target
     setPasswordFields({
       ...passwordFields,
@@ -124,7 +154,7 @@ export function Settings() {
     })
   }
 
-  const handleConnectAccount = (platform) => {
+  const handleConnectAccount = (platform: string) => {
     toast({
       title: "Connecting to " + platform,
       description: "You will be redirected to authorize this connection.",
@@ -132,7 +162,7 @@ export function Settings() {
     })
   }
 
-  const handleDisconnectAccount = (platform) => {
+  const handleDisconnectAccount = (platform: string) => {
     toast({
       title: platform + " disconnected",
       description: "Your account has been disconnected successfully.",
@@ -170,6 +200,56 @@ export function Settings() {
       description: "Your display preferences have been reset to defaults.",
       variant: "default",
     })
+  }
+
+  useEffect(() => {
+    async function fetchIntakeFormData() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        console.log('🔍 Making query to:', 'parent_intake_form', 'from:', 'settings.tsx', { user });
+        const { data, error } = await supabase
+          .from('parent_intake_form')
+          .select('*')
+          .eq('parent_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single()
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error fetching intake form:', error)
+          toast({
+            title: "Error loading intake form data",
+            description: "Please try again later",
+            variant: "destructive",
+          })
+        } else {
+          console.log('Fetched intake form data:', data)
+          setIntakeFormData(data)
+        }
+      } catch (error) {
+        console.error('Error:', error)
+      } finally {
+        setIsLoadingForm(false)
+      }
+    }
+
+    if (activeTab === 'preferences') {
+      fetchIntakeFormData()
+    }
+  }, [activeTab])
+
+  const handleEditStep = (step: number) => {
+    router.push(`/parent-intake?step=${step}&edit=true`)
+  }
+
+  const handleNewForm = () => {
+    router.push('/parent-intake?new=true')
+  }
+
+  const handleViewResponses = () => {
+    router.push('/parent-intake/responses')
   }
 
   return (
@@ -257,7 +337,6 @@ export function Settings() {
                         variant="outline"
                         size="sm"
                         className="cursor-pointer relative overflow-hidden group"
-                        as="span"
                       >
                         <div className="absolute inset-0 w-3 bg-gradient-to-r from-primary to-primary/50 group-hover:w-full transition-all duration-300 opacity-10"></div>
                         Change Avatar
@@ -1040,6 +1119,79 @@ export function Settings() {
                       </div>
                       <Switch id="show-rewards" defaultChecked />
                     </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="font-medium">Parent Intake Form</h3>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h4 className="text-sm font-medium">Manage your educational preferences and requirements</h4>
+                        {intakeFormData && (
+                          <p className="text-sm text-muted-foreground">
+                            Last updated: {new Date(intakeFormData.updated_at).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleViewResponses}
+                          className="flex items-center gap-2"
+                        >
+                          <FileSpreadsheet className="h-4 w-4" />
+                          View All Responses
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={handleNewForm}
+                          className="flex items-center gap-2"
+                        >
+                          <ClipboardEdit className="h-4 w-4" />
+                          Complete New Form
+                        </Button>
+                      </div>
+                    </div>
+
+                    {isLoadingForm ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {[
+                          { step: 1, title: "Educational Vision", icon: "🎯" },
+                          { step: 2, title: "Home/School Split", icon: "🏠" },
+                          { step: 3, title: "Program Tools", icon: "🛠️" },
+                          { step: 4, title: "Schedule Preferences", icon: "📅" },
+                          { step: 5, title: "Mentor Personality", icon: "👤" },
+                          { step: 6, title: "Educational Values", icon: "🌟" },
+                          { step: 7, title: "Student Profile", icon: "👨‍🎓" },
+                          { step: 8, title: "Extracurriculars", icon: "🎨" },
+                          { step: 9, title: "Device Access", icon: "💻" },
+                          { step: 10, title: "Parent Oversight", icon: "👀" },
+                          { step: 11, title: "Accountability", icon: "✅" },
+                          { step: 12, title: "Budget & Grants", icon: "💰" },
+                          { step: 13, title: "Applications", icon: "📝" },
+                        ].map((item) => (
+                          <Button
+                            key={item.step}
+                            variant="outline"
+                            className="h-auto py-4 px-4 flex flex-col items-start gap-1 relative overflow-hidden group"
+                            onClick={() => handleEditStep(item.step)}
+                          >
+                            <div className="absolute inset-0 w-1 bg-gradient-to-b from-primary to-primary/50 group-hover:w-full transition-all duration-300 opacity-10" />
+                            <div className="flex items-center gap-2 w-full">
+                              <span className="text-lg">{item.icon}</span>
+                              <span className="font-medium">{item.title}</span>
+                            </div>
+                            <span className="text-sm text-muted-foreground">Edit Step {item.step}</span>
+                          </Button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 

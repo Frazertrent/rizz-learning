@@ -7,13 +7,46 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
+import { CheckCircle } from "lucide-react"
 
-export function SchedulePreferences({ formData, updateFormData }) {
-  const [schoolDays, setSchoolDays] = useState(formData.schoolDays || [])
+interface DaySpecificTime {
+  startTime: string
+  endTime: string
+}
+
+interface DaySpecificTimes {
+  monday: DaySpecificTime
+  tuesday: DaySpecificTime
+  wednesday: DaySpecificTime
+  thursday: DaySpecificTime
+  friday: DaySpecificTime
+  saturday: DaySpecificTime
+  sunday: DaySpecificTime
+}
+
+interface SchedulePreferencesData {
+  schoolDays: string[]
+  hasDifferentTimes: boolean
+  startTime: string
+  endTime: string
+  daySpecificTimes: DaySpecificTimes
+  blockLength: number
+  termStructure: "school" | "custom"
+  termLength: number
+  termUnit: string
+}
+
+interface SchedulePreferencesProps {
+  formData: Partial<SchedulePreferencesData>
+  updateFormData: (data: Partial<SchedulePreferencesData>) => void
+}
+
+export function SchedulePreferences({ formData, updateFormData }: SchedulePreferencesProps) {
+  const [schoolDays, setSchoolDays] = useState<string[]>(formData.schoolDays || [])
   const [hasDifferentTimes, setHasDifferentTimes] = useState(formData.hasDifferentTimes || false)
   const [startTime, setStartTime] = useState(formData.startTime || "08:00")
   const [endTime, setEndTime] = useState(formData.endTime || "15:00")
-  const [daySpecificTimes, setDaySpecificTimes] = useState(
+  const [daySpecificTimes, setDaySpecificTimes] = useState<DaySpecificTimes>(
     formData.daySpecificTimes || {
       monday: { startTime: "08:00", endTime: "15:00" },
       tuesday: { startTime: "08:00", endTime: "15:00" },
@@ -25,13 +58,31 @@ export function SchedulePreferences({ formData, updateFormData }) {
     },
   )
   const [blockLength, setBlockLength] = useState(formData.blockLength || 45)
-  const [termStructure, setTermStructure] = useState(formData.termStructure || "school")
+  const [termStructure, setTermStructure] = useState<"school" | "custom">(formData.termStructure || "school")
   const [termLength, setTermLength] = useState(formData.termLength || 9)
   const [termUnit, setTermUnit] = useState(formData.termUnit || "weeks")
+  const [showSaveConfirmation, setShowSaveConfirmation] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+
+  // Sync with incoming formData changes
+  useEffect(() => {
+    console.log("SchedulePreferences: Incoming formData update", formData)
+    if (formData) {
+      if (formData.schoolDays) setSchoolDays(formData.schoolDays)
+      if (formData.hasDifferentTimes !== undefined) setHasDifferentTimes(formData.hasDifferentTimes)
+      if (formData.startTime) setStartTime(formData.startTime)
+      if (formData.endTime) setEndTime(formData.endTime)
+      if (formData.daySpecificTimes) setDaySpecificTimes(formData.daySpecificTimes)
+      if (formData.blockLength) setBlockLength(formData.blockLength)
+      if (formData.termStructure) setTermStructure(formData.termStructure)
+      if (formData.termLength) setTermLength(formData.termLength)
+      if (formData.termUnit) setTermUnit(formData.termUnit)
+    }
+  }, [formData])
 
   // Update parent form data when any value changes
   useEffect(() => {
-    updateFormData({
+    console.log("SchedulePreferences: Updating parent with new data", {
       schoolDays,
       hasDifferentTimes,
       startTime,
@@ -42,6 +93,26 @@ export function SchedulePreferences({ formData, updateFormData }) {
       termLength,
       termUnit,
     })
+
+    setIsSaving(true)
+    const timer = setTimeout(() => {
+      updateFormData({
+        schoolDays,
+        hasDifferentTimes,
+        startTime,
+        endTime,
+        daySpecificTimes,
+        blockLength,
+        termStructure,
+        termLength,
+        termUnit,
+      })
+      setIsSaving(false)
+      setShowSaveConfirmation(true)
+      setTimeout(() => setShowSaveConfirmation(false), 2000)
+    }, 500)
+
+    return () => clearTimeout(timer)
   }, [
     schoolDays,
     hasDifferentTimes,
@@ -55,7 +126,7 @@ export function SchedulePreferences({ formData, updateFormData }) {
     updateFormData,
   ])
 
-  const handleDayChange = (day) => {
+  const handleDayChange = (day: string) => {
     if (schoolDays.includes(day)) {
       setSchoolDays(schoolDays.filter((d) => d !== day))
     } else {
@@ -63,7 +134,7 @@ export function SchedulePreferences({ formData, updateFormData }) {
     }
   }
 
-  const handleDaySpecificTimeChange = (day, field, value) => {
+  const handleDaySpecificTimeChange = (day: keyof DaySpecificTimes, field: keyof DaySpecificTime, value: string) => {
     setDaySpecificTimes({
       ...daySpecificTimes,
       [day]: {
@@ -74,13 +145,13 @@ export function SchedulePreferences({ formData, updateFormData }) {
   }
 
   const daysOfWeek = [
-    { id: "monday", label: "Monday" },
-    { id: "tuesday", label: "Tuesday" },
-    { id: "wednesday", label: "Wednesday" },
-    { id: "thursday", label: "Thursday" },
-    { id: "friday", label: "Friday" },
-    { id: "saturday", label: "Saturday" },
-    { id: "sunday", label: "Sunday" },
+    { id: "monday" as keyof DaySpecificTimes, label: "Monday" },
+    { id: "tuesday" as keyof DaySpecificTimes, label: "Tuesday" },
+    { id: "wednesday" as keyof DaySpecificTimes, label: "Wednesday" },
+    { id: "thursday" as keyof DaySpecificTimes, label: "Thursday" },
+    { id: "friday" as keyof DaySpecificTimes, label: "Friday" },
+    { id: "saturday" as keyof DaySpecificTimes, label: "Saturday" },
+    { id: "sunday" as keyof DaySpecificTimes, label: "Sunday" },
   ]
 
   return (
@@ -161,40 +232,43 @@ export function SchedulePreferences({ formData, updateFormData }) {
               <Label className="text-white">Set start and end times for each selected day:</Label>
               <div className="space-y-4">
                 {schoolDays.length > 0 ? (
-                  schoolDays.map((day) => (
-                    <div
-                      key={day}
-                      className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center p-3 bg-gray-800 rounded-md"
-                    >
-                      <Label className="text-gray-300 md:col-span-1">
-                        {daysOfWeek.find((d) => d.id === day)?.label}:
-                      </Label>
-                      <div className="space-y-1 md:col-span-1">
-                        <Label htmlFor={`${day}-start`} className="text-gray-400 text-xs">
-                          Start Time
+                  schoolDays.map((day) => {
+                    const typedDay = day as keyof DaySpecificTimes
+                    return (
+                      <div
+                        key={day}
+                        className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center p-3 bg-gray-800 rounded-md"
+                      >
+                        <Label className="text-gray-300 md:col-span-1">
+                          {daysOfWeek.find((d) => d.id === typedDay)?.label}:
                         </Label>
-                        <Input
-                          id={`${day}-start`}
-                          type="time"
-                          value={daySpecificTimes[day].startTime}
-                          onChange={(e) => handleDaySpecificTimeChange(day, "startTime", e.target.value)}
-                          className="bg-gray-700 border-gray-600 text-white"
-                        />
+                        <div className="space-y-1 md:col-span-1">
+                          <Label htmlFor={`${typedDay}-start`} className="text-gray-400 text-xs">
+                            Start Time
+                          </Label>
+                          <Input
+                            id={`${typedDay}-start`}
+                            type="time"
+                            value={daySpecificTimes[typedDay].startTime}
+                            onChange={(e) => handleDaySpecificTimeChange(typedDay, "startTime", e.target.value)}
+                            className="bg-gray-700 border-gray-600 text-white"
+                          />
+                        </div>
+                        <div className="space-y-1 md:col-span-1">
+                          <Label htmlFor={`${typedDay}-end`} className="text-gray-400 text-xs">
+                            End Time
+                          </Label>
+                          <Input
+                            id={`${typedDay}-end`}
+                            type="time"
+                            value={daySpecificTimes[typedDay].endTime}
+                            onChange={(e) => handleDaySpecificTimeChange(typedDay, "endTime", e.target.value)}
+                            className="bg-gray-700 border-gray-600 text-white"
+                          />
+                        </div>
                       </div>
-                      <div className="space-y-1 md:col-span-1">
-                        <Label htmlFor={`${day}-end`} className="text-gray-400 text-xs">
-                          End Time
-                        </Label>
-                        <Input
-                          id={`${day}-end`}
-                          type="time"
-                          value={daySpecificTimes[day].endTime}
-                          onChange={(e) => handleDaySpecificTimeChange(day, "endTime", e.target.value)}
-                          className="bg-gray-700 border-gray-600 text-white"
-                        />
-                      </div>
-                    </div>
-                  ))
+                    )
+                  })
                 ) : (
                   <div className="text-gray-400 italic">Please select at least one school day above.</div>
                 )}
@@ -223,7 +297,7 @@ export function SchedulePreferences({ formData, updateFormData }) {
         {/* Term Structure Section */}
         <div className="space-y-4">
           <Label className="text-white text-lg">Term Structure:</Label>
-          <RadioGroup value={termStructure} onValueChange={setTermStructure} className="space-y-2">
+          <RadioGroup value={termStructure} onValueChange={(value: "school" | "custom") => setTermStructure(value)} className="space-y-2">
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="school" id="school-terms" className="border-gray-600 text-blue-600" />
               <Label htmlFor="school-terms" className="text-gray-300">
@@ -291,6 +365,16 @@ export function SchedulePreferences({ formData, updateFormData }) {
           )}
         </div>
       </CardContent>
+      {showSaveConfirmation && (
+        <div className="fixed bottom-0 left-0 right-0 p-4">
+          <div className="bg-green-800 text-white p-4 rounded-t-lg">
+            <p className="text-center">
+              <CheckCircle className="inline-block mr-2" size={20} />
+              Schedule preferences saved successfully!
+            </p>
+          </div>
+        </div>
+      )}
     </>
   )
 }

@@ -11,14 +11,53 @@ import { Button } from "@/components/ui/button"
 import { PlusCircle, X } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
-export function StudentProfile({ formData, updateFormData }) {
-  const [students, setStudents] = useState(formData.students || [])
+interface Student {
+  name: string;
+  age: string;
+  gradeLevel: string;
+  learningCharacteristics: string[];
+  iepDetails: string;
+  otherCharacteristic: string;
+}
+
+interface StudentProfileProps {
+  formData: {
+    students: Student[];
+    activeStudentIndex?: number;
+  };
+  updateFormData: (data: any) => void;
+  editMode?: boolean;
+}
+
+export function StudentProfile({ formData, updateFormData, editMode }: StudentProfileProps) {
+  // Add detailed debugging logs
+  console.log('📋 StudentProfile detailed debug:');
+  console.log('  - formData.students:', formData.students);
+  console.log('  - activeStudentIndex:', formData.activeStudentIndex);
+
+  const [students, setStudents] = useState<Student[]>(formData.students || [])
   const [activeIndex, setActiveIndex] = useState(formData.activeStudentIndex || 0)
   const [isInitialRender, setIsInitialRender] = useState(true)
+
+  console.log('  - local students state:', students);
+  console.log('  - students length:', students.length);
+  console.log('  - first student data:', students[0]);
+
+  // Add effect to sync with incoming formData changes
+  useEffect(() => {
+    if (formData.students?.length > 0) {
+      console.log('Updating local state from formData:', formData.students);
+      setStudents(formData.students);
+      if (typeof formData.activeStudentIndex === 'number') {
+        setActiveIndex(formData.activeStudentIndex);
+      }
+    }
+  }, [formData.students, formData.activeStudentIndex]);
 
   // Initialize with at least one student if none exist
   useEffect(() => {
     if (students.length === 0) {
+      console.log('Initializing with empty student');
       setStudents([
         {
           name: "",
@@ -32,12 +71,19 @@ export function StudentProfile({ formData, updateFormData }) {
     }
   }, [students.length])
 
+  // Effect for updating parent component
   useEffect(() => {
+    console.log('StudentProfile useEffect - students changed:', students);
     // Skip the first render to avoid the infinite loop
     if (isInitialRender) {
       setIsInitialRender(false)
       return
     }
+
+    console.log('Updating parent formData with:', {
+      students,
+      activeStudentIndex: activeIndex,
+    });
 
     updateFormData({
       students,
@@ -63,7 +109,7 @@ export function StudentProfile({ formData, updateFormData }) {
     }
   }
 
-  const handleRemoveStudent = (index) => {
+  const handleRemoveStudent = (index: number) => {
     if (students.length > 1) {
       const newStudents = students.filter((_, i) => i !== index)
       setStudents(newStudents)
@@ -77,7 +123,7 @@ export function StudentProfile({ formData, updateFormData }) {
     }
   }
 
-  const handleStudentChange = (field, value) => {
+  const handleFieldChange = (field: keyof Student, value: string) => {
     const updatedStudents = [...students]
     updatedStudents[activeIndex] = {
       ...updatedStudents[activeIndex],
@@ -86,7 +132,7 @@ export function StudentProfile({ formData, updateFormData }) {
     setStudents(updatedStudents)
   }
 
-  const handleCharacteristicChange = (characteristic) => {
+  const handleCharacteristicChange = (characteristic: string) => {
     const currentCharacteristics = students[activeIndex].learningCharacteristics || []
     let updatedCharacteristics
 
@@ -181,7 +227,7 @@ export function StudentProfile({ formData, updateFormData }) {
                 id="student-name"
                 type="text"
                 value={students[activeIndex]?.name || ""}
-                onChange={(e) => handleStudentChange("name", e.target.value)}
+                onChange={(e) => handleFieldChange("name", e.target.value)}
                 className="bg-gray-800 border-gray-700 text-white"
                 placeholder="Enter student's name"
               />
@@ -196,7 +242,7 @@ export function StudentProfile({ formData, updateFormData }) {
                   id="age"
                   type="text"
                   value={students[activeIndex]?.age || ""}
-                  onChange={(e) => handleStudentChange("age", e.target.value)}
+                  onChange={(e) => handleFieldChange("age", e.target.value)}
                   className="bg-gray-800 border-gray-700 text-white"
                   placeholder="e.g., 10"
                 />
@@ -208,7 +254,7 @@ export function StudentProfile({ formData, updateFormData }) {
                 </Label>
                 <Select
                   value={students[activeIndex]?.gradeLevel || ""}
-                  onValueChange={(value) => handleStudentChange("gradeLevel", value)}
+                  onValueChange={(value) => handleFieldChange("gradeLevel", value)}
                 >
                   <SelectTrigger id="grade-level" className="bg-gray-800 border-gray-700 text-white">
                     <SelectValue placeholder="Select grade level" />
@@ -267,7 +313,7 @@ export function StudentProfile({ formData, updateFormData }) {
                   <Textarea
                     id="iep-details"
                     value={students[activeIndex]?.iepDetails || ""}
-                    onChange={(e) => handleStudentChange("iepDetails", e.target.value)}
+                    onChange={(e) => handleFieldChange("iepDetails", e.target.value)}
                     className="bg-gray-800 border-gray-700 text-white mt-1"
                     placeholder="Describe any learning challenges or IEP details"
                     rows={3}
@@ -283,7 +329,7 @@ export function StudentProfile({ formData, updateFormData }) {
                   <Input
                     id="other-characteristic"
                     value={students[activeIndex]?.otherCharacteristic || ""}
-                    onChange={(e) => handleStudentChange("otherCharacteristic", e.target.value)}
+                    onChange={(e) => handleFieldChange("otherCharacteristic", e.target.value)}
                     className="bg-gray-800 border-gray-700 text-white mt-1"
                     placeholder="Describe other learning characteristics"
                   />

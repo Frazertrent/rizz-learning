@@ -6,10 +6,47 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import { CheckCircle } from "lucide-react"
 
-export function AccountabilityPenalties({ formData, updateFormData }) {
-  const [penaltyLevel, setPenaltyLevel] = useState(formData.penaltyLevel || "moderate")
-  const [customPenalties, setCustomPenalties] = useState(
+interface XpPenalties {
+  missedCheckIn: number
+  missedSummary: number
+  failedQuiz: number
+  missedWeeklyGoal: number
+}
+
+interface CoinPenalties {
+  missedCheckIn: number
+  missedSummary: number
+  failedQuiz: number
+  missedWeeklyGoal: number
+}
+
+interface StreakBehavior {
+  breakAfterMissedCheckIn: boolean
+  removeXpBonus: boolean
+  allowTaskRetry: boolean
+}
+
+interface CustomPenalties {
+  xp: XpPenalties
+  coins: CoinPenalties
+  streakBehavior: StreakBehavior
+}
+
+interface AccountabilityPenaltiesData {
+  penaltyLevel: "light" | "moderate" | "strict" | "custom"
+  customPenalties: CustomPenalties
+}
+
+interface AccountabilityPenaltiesProps {
+  formData: Partial<AccountabilityPenaltiesData>
+  updateFormData: (data: Partial<AccountabilityPenaltiesData>) => void
+}
+
+export function AccountabilityPenalties({ formData, updateFormData }: AccountabilityPenaltiesProps) {
+  const [penaltyLevel, setPenaltyLevel] = useState<AccountabilityPenaltiesData["penaltyLevel"]>(formData.penaltyLevel || "moderate")
+  const [customPenalties, setCustomPenalties] = useState<CustomPenalties>(
     formData.customPenalties || {
       xp: {
         missedCheckIn: 10,
@@ -30,15 +67,41 @@ export function AccountabilityPenalties({ formData, updateFormData }) {
       },
     },
   )
+  const [showSaveConfirmation, setShowSaveConfirmation] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
+  // Sync with incoming formData changes
   useEffect(() => {
-    updateFormData({
+    console.log("AccountabilityPenalties: Incoming formData update", formData)
+    if (formData) {
+      if (formData.penaltyLevel) setPenaltyLevel(formData.penaltyLevel)
+      if (formData.customPenalties) setCustomPenalties(formData.customPenalties)
+    }
+  }, [formData])
+
+  // Update parent form data when any value changes
+  useEffect(() => {
+    console.log("AccountabilityPenalties: Updating parent with new data", {
       penaltyLevel,
       customPenalties,
     })
+
+    setIsSaving(true)
+    const timer = setTimeout(() => {
+      updateFormData({
+        penaltyLevel,
+        customPenalties,
+      })
+      setIsSaving(false)
+      setShowSaveConfirmation(true)
+      setTimeout(() => setShowSaveConfirmation(false), 2000)
+    }, 500)
+
+    return () => clearTimeout(timer)
   }, [penaltyLevel, customPenalties, updateFormData])
 
-  const handleXpPenaltyChange = (field, value) => {
+  const handleXpPenaltyChange = (field: keyof XpPenalties, value: string) => {
+    console.log("AccountabilityPenalties: Handling XP penalty change", { field, value })
     setCustomPenalties({
       ...customPenalties,
       xp: {
@@ -48,7 +111,8 @@ export function AccountabilityPenalties({ formData, updateFormData }) {
     })
   }
 
-  const handleCoinPenaltyChange = (field, value) => {
+  const handleCoinPenaltyChange = (field: keyof CoinPenalties, value: string) => {
+    console.log("AccountabilityPenalties: Handling coin penalty change", { field, value })
     setCustomPenalties({
       ...customPenalties,
       coins: {
@@ -58,7 +122,8 @@ export function AccountabilityPenalties({ formData, updateFormData }) {
     })
   }
 
-  const handleStreakBehaviorChange = (field, value) => {
+  const handleStreakBehaviorChange = (field: keyof StreakBehavior, value: boolean) => {
+    console.log("AccountabilityPenalties: Handling streak behavior change", { field, value })
     setCustomPenalties({
       ...customPenalties,
       streakBehavior: {
@@ -81,7 +146,11 @@ export function AccountabilityPenalties({ formData, updateFormData }) {
           <Label className="text-white text-lg">
             How strict should the system be when your child fails to meet expectations?
           </Label>
-          <RadioGroup value={penaltyLevel} onValueChange={setPenaltyLevel} className="space-y-3">
+          <RadioGroup 
+            value={penaltyLevel} 
+            onValueChange={(value: AccountabilityPenaltiesData["penaltyLevel"]) => setPenaltyLevel(value)} 
+            className="space-y-3"
+          >
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="light" id="light-penalty" className="border-gray-600 text-blue-600" />
               <Label htmlFor="light-penalty" className="text-gray-300">
@@ -237,7 +306,7 @@ export function AccountabilityPenalties({ formData, updateFormData }) {
                   <Checkbox
                     id="break-streak"
                     checked={customPenalties.streakBehavior.breakAfterMissedCheckIn}
-                    onCheckedChange={(checked) => handleStreakBehaviorChange("breakAfterMissedCheckIn", checked)}
+                    onCheckedChange={(checked: boolean) => handleStreakBehaviorChange("breakAfterMissedCheckIn", checked)}
                     className="border-gray-600 data-[state=checked]:bg-blue-600"
                   />
                   <Label htmlFor="break-streak" className="text-gray-300">
@@ -248,7 +317,7 @@ export function AccountabilityPenalties({ formData, updateFormData }) {
                   <Checkbox
                     id="remove-xp-bonus"
                     checked={customPenalties.streakBehavior.removeXpBonus}
-                    onCheckedChange={(checked) => handleStreakBehaviorChange("removeXpBonus", checked)}
+                    onCheckedChange={(checked: boolean) => handleStreakBehaviorChange("removeXpBonus", checked)}
                     className="border-gray-600 data-[state=checked]:bg-blue-600"
                   />
                   <Label htmlFor="remove-xp-bonus" className="text-gray-300">
@@ -259,7 +328,7 @@ export function AccountabilityPenalties({ formData, updateFormData }) {
                   <Checkbox
                     id="allow-retry"
                     checked={customPenalties.streakBehavior.allowTaskRetry}
-                    onCheckedChange={(checked) => handleStreakBehaviorChange("allowTaskRetry", checked)}
+                    onCheckedChange={(checked: boolean) => handleStreakBehaviorChange("allowTaskRetry", checked)}
                     className="border-gray-600 data-[state=checked]:bg-blue-600"
                   />
                   <Label htmlFor="allow-retry" className="text-gray-300">
@@ -271,6 +340,16 @@ export function AccountabilityPenalties({ formData, updateFormData }) {
           </div>
         )}
       </CardContent>
+      {showSaveConfirmation && (
+        <div className="fixed bottom-0 left-0 right-0 p-4">
+          <div className="bg-green-800 text-white p-4 rounded-t-lg">
+            <p className="text-center">
+              <CheckCircle className="inline-block mr-2" size={20} />
+              Accountability settings saved successfully!
+            </p>
+          </div>
+        </div>
+      )}
     </>
   )
 }
